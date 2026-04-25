@@ -1,0 +1,20 @@
+# シークレット
+.env
+auth.json
+**/auth.json
+*.key
+*.pem
+
+# セッション・キャッシュデータ（大きすぎる）
+profiles/*/sessions/
+profiles/*/logs/
+profiles/*/cache/
+legacy-homes/
+**/models_dev_cache.json
+**/.skills_prompt_snapshot.json
+**/__pycache__/
+*.pyc
+*.pyo
+
+# hermes-agent 本体はサブモジュール扱い
+hermes-agent/
