@@ -1,0 +1,6 @@
+name: mycare_approval
+version: 0.2.0
+description: MyCARE approval tokens with admin-only issuing and admin bypass.
+author: MyKNOT
+provides_tools:
+  - mycare_approval_token
