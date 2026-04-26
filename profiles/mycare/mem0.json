@@ -1,0 +1,12 @@
+{
+  "pg_host": "localhost",
+  "pg_port": 5432,
+  "pg_user": "myknot",
+  "pg_password": "jG0LJjpyVv",
+  "pg_dbname": "mycare",
+  "llm_provider": "openai",
+  "llm_model": "meta/llama-3.3-70b-instruct",
+  "llm_base_url": "https://integrate.api.nvidia.com/v1",
+  "user_id": "hermes-user",
+  "agent_id": "mycare"
+}

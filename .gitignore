@@ -1,20 +1,96 @@
-# シークレット
+# ========== シークレット（絶対含めない） ==========
 .env
+**/.env
 auth.json
 **/auth.json
+auth.lock
+**/auth.lock
 *.key
 *.pem
 
-# セッション・キャッシュデータ（大きすぎる）
-profiles/*/sessions/
-profiles/*/logs/
-profiles/*/cache/
-legacy-homes/
+# ========== 実行時生成ファイル ==========
+gateway.pid
+**/gateway.pid
+gateway_state.json
+**/gateway_state.json
+channel_directory.json
+**/channel_directory.json
+processes.json
+**/processes.json
+*.db
+*.db-shm
+*.db-wal
+*.lock
+
+# ========== キャッシュ・一時ファイル ==========
+cache/
+**/cache/
+audio_cache/
+**/audio_cache/
+image_cache/
+**/image_cache/
+bin/
+**/bin/
+node/
+**/node/
+home/
+**/home/
+sandboxes/
+**/sandboxes/
+checkpoints/
+**/checkpoints/
+pastes/
+**/pastes/
+skill_index.db
+**/skill_index.db
 **/models_dev_cache.json
 **/.skills_prompt_snapshot.json
+**/.update_check
+**/.clean_shutdown
 **/__pycache__/
 *.pyc
 *.pyo
+*.pyo
+prefill-short-response.json
+**/prefill-short-response.json
 
-# hermes-agent 本体はサブモジュール扱い
+# ========== セッション・ログ（大きすぎる） ==========
+sessions/
+**/sessions/
+logs/
+**/logs/
+
+# ========== メモリ・状態（動的データ） ==========
+memories/
+**/memories/
+mem0_cleanup_backups/
+**/mem0_cleanup_backups/
+plans/
+**/plans/
+workspace/
+**/workspace/
+skins/
+**/skins/
+global/
+**/global/
+cron/
+**/cron/
+platforms/pairing/
+**/platforms/pairing/
+plugins/mycare_approval/
+discord_threads.json
+**/discord_threads.json
+.hermes_history
+.restart_last_processed.json
+.update_check
+
+# ========== hermes-agent 本体（別リポジトリ） ==========
 hermes-agent/
+
+# ========== バックアップ ==========
+config.yaml.bak*
+
+# ========== バックアップ・履歴 ==========
+legacy-homes/
+refactor_backups/
+tmp/
