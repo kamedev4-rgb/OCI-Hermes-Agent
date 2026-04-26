@@ -1,0 +1,13 @@
+{
+  "mode": "always",
+  "probe_model": "gpt-5.4-mini",
+  "thresholds": [85, 90, 95],
+  "delivery": {
+    "discord_channel_id": "1492863693623525446"
+  },
+  "message_event": {
+    "enabled": true,
+    "thresholds": [85, 90, 95],
+    "discord_channel_id": "1492863693623525446"
+  }
+}
