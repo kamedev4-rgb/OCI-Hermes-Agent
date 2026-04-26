@@ -1,0 +1,22 @@
+model:
+  provider: openai-codex
+  model: gpt-5.4
+  base_url: https://chatgpt.com/backend-api/codex
+memory:
+  memory_enabled: false
+  provider: builtin
+gateway:
+  discord:
+    bot_token: ${DISCORD_BOT_TOKEN}
+    channels:
+      mycare: ${DISCORD_MYCARE_CHANNEL_ID}
+    commands:
+    - '!check'
+    - '!approve'
+    - '!reject'
+    - '!help'
+discord:
+  require_mention: true
+  free_response_channels: ''
+  auto_thread: true
+DISCORD_HOME_CHANNEL: '1492863769104351412'

@@ -49,12 +49,10 @@ skill_index.db
 **/.clean_shutdown
 **/__pycache__/
 *.pyc
-*.pyo
-*.pyo
 prefill-short-response.json
 **/prefill-short-response.json
 
-# ========== セッション・ログ（大きすぎる） ==========
+# ========== セッション・ログ ==========
 sessions/
 **/sessions/
 logs/
@@ -64,19 +62,13 @@ logs/
 memories/
 **/memories/
 mem0_cleanup_backups/
-**/mem0_cleanup_backups/
 plans/
-**/plans/
 workspace/
-**/workspace/
 skins/
-**/skins/
 global/
-**/global/
 cron/
 **/cron/
 platforms/pairing/
-**/platforms/pairing/
 plugins/mycare_approval/
 discord_threads.json
 **/discord_threads.json
@@ -84,13 +76,11 @@ discord_threads.json
 .restart_last_processed.json
 .update_check
 
-# ========== hermes-agent 本体（別リポジトリ） ==========
+# ========== hermes-agent 本体 ==========
 hermes-agent/
 
 # ========== バックアップ ==========
 config.yaml.bak*
 
-# ========== バックアップ・履歴 ==========
+# ========== 旧設定アーカイブ ==========
 legacy-homes/
-refactor_backups/
-tmp/
