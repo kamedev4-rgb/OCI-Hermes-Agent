@@ -83,8 +83,8 @@ discord_threads.json
 .restart_last_processed.json
 .update_check
 
-# ========== hermes-agent 本体（別リポジトリ） ==========
-hermes-agent/
+# ========== ネストされた git 退避 ==========
+.nested-git-backups/
 
 # ========== バックアップ ==========
 config.yaml.bak*
