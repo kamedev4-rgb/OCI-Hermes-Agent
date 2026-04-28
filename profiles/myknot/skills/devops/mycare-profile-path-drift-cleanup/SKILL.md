@@ -136,6 +136,42 @@ These can remain after cleanup:
 
 Reason: they are historical records, not live runtime configuration.
 
+## Nested `hermes-agent` repo vs path flattening
+
+A separate but related cleanup question is whether `/home/ubuntu/.hermes/hermes-agent` should remain its own Git repo.
+
+Important distinction:
+
+### Safe option: remove only nested `.git`
+
+If you keep the directory `/home/ubuntu/.hermes/hermes-agent/` in place and remove only its `.git`, runtime paths stay stable.
+
+This means:
+- MyCARE and MyKNOT systemd services usually do **not** need runtime changes
+- the main required repo change is updating the root `~/.hermes/.gitignore` if it currently ignores `hermes-agent/`
+- existing service paths like these remain valid:
+  - `ExecStart=/home/ubuntu/.hermes/hermes-agent/venv/bin/python -m hermes_cli.main ...`
+  - `WorkingDirectory=/home/ubuntu/.hermes/hermes-agent`
+  - `PATH=.../home/ubuntu/.hermes/hermes-agent/node_modules/.bin...`
+  - `VIRTUAL_ENV=/home/ubuntu/.hermes/hermes-agent/venv`
+
+### Bigger option: flatten `hermes-agent/` into `~/.hermes/`
+
+If you remove the directory itself and move the code to the root, this is **not** just a Git cleanup.
+
+You must update at least:
+- `~/.config/systemd/user/hermes-gateway-mycare.service`
+- `~/.config/systemd/user/hermes-gateway-myknot.service`
+- `~/.config/systemd/user/codex-quota-monitor.service`
+
+And likely rebuild:
+- the Python venv (old shebangs and editable install metadata point at `.../hermes-agent/venv`)
+- the Node/browser tool path wiring (`.../hermes-agent/node_modules/.bin`)
+
+Operational rule:
+- **one Git root** is low-risk if the directory path stays the same
+- **one filesystem root** is a larger migration and should be planned separately
+
 ## Pitfalls
 
 1. **Do not confuse archived text with active config.**
@@ -147,7 +183,10 @@ Reason: they are historical records, not live runtime configuration.
 3. **Do not assume systemd units are wrong just because historical outputs mention the old home.**
    Read the actual loaded unit files under `~/.config/systemd/user/`.
 
-4. **Restart after changing live config.**
+4. **Do not conflate removing nested Git with moving runtime paths.**
+   Deleting `.git` inside `hermes-agent/` is much safer than relocating the directory.
+
+5. **Restart after changing live config.**
    Config edits alone are not enough for the running gateway.
 
 ## Expected final report shape

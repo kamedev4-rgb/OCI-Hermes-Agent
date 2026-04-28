@@ -260,11 +260,13 @@ skills:
     prompt_mode: shortlist
     shortlist_limit: 15
     enabled: true
-    pinned: []
+    pinned:
+    - writing-plans
+    - systematic-debugging
 honcho: {}
 timezone: ''
 discord:
-  require_mention: true
+  require_mention: false
   free_response_channels: ''
   allowed_channels: '1492863629173719050'
   auto_thread: true
@@ -345,39 +347,16 @@ platform_toolsets:
   - hermes-qqbot
 
 # ── Fallback Model ────────────────────────────────────────────────────
-# Automatic provider failover when primary is unavailable.
-# Uncomment and configure to enable. Triggers on rate limits (429),
-# overload (529), service errors (503), or connection failures.
+# Codex exhausted 時に別プロバイダーへ自動切り替えする設定。
+# 有効化するには以下のコメントを外し、provider と model を書き換える。
+# fallback_pool_patch（run_agent.py への適用手順）は
+#   1_myknot/runbook/fallback_pool_patch_指示書.md を参照。
 #
-# Supported providers:
-#   openrouter   (OPENROUTER_API_KEY)  — routes to any model
-#   openai-codex (OAuth — hermes auth) — OpenAI Codex
-#   nous         (OAuth — hermes auth) — Nous Portal
+# 利用可能なプロバイダー:
+#   openrouter   (OPENROUTER_API_KEY)  — 各種モデルへルーティング
+#   anthropic    (ANTHROPIC_API_KEY)   — Claude（従量課金）
 #   zai          (ZAI_API_KEY)         — Z.AI / GLM
-#   kimi-coding  (KIMI_API_KEY)        — Kimi / Moonshot
-#   kimi-coding-cn (KIMI_CN_API_KEY)   — Kimi / Moonshot (China)
-#   minimax      (MINIMAX_API_KEY)     — MiniMax
-#   minimax-cn   (MINIMAX_CN_API_KEY)  — MiniMax (China)
-#
-# For custom OpenAI-compatible endpoints, add base_url and api_key_env.
 #
 # fallback_model:
-#   provider: openrouter
-#   model: anthropic/claude-sonnet-4
-#
-# ── Smart Model Routing ────────────────────────────────────────────────
-# Optional cheap-vs-strong routing for simple turns.
-# Keeps the primary model for complex work, but can route short/simple
-# messages to a cheaper model across providers.
-#
-# smart_model_routing:
-#   enabled: true
-#   max_simple_chars: 160
-#   max_simple_words: 28
-#   cheap_model:
-#     provider: openrouter
-#     model: google/gemini-2.5-flash
-
-fallback_model:
-  provider: anthropic
-  model: claude-sonnet-4-6
+#   provider: anthropic
+#   model: claude-sonnet-4-6

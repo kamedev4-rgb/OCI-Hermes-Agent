@@ -70,8 +70,8 @@ workspace/
 **/workspace/
 skins/
 **/skins/
-global/
-**/global/
+global/state/
+**/global/state/
 cron/
 **/cron/
 platforms/pairing/
