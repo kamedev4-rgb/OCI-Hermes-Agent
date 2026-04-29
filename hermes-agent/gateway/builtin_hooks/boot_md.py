@@ -55,7 +55,15 @@ def _run_boot_agent(content: str) -> None:
             max_iterations=20,
         )
         result = agent.run_conversation(prompt)
-        response = result.get("final_response", "")
+        if result.get("failed") or not result.get("completed"):
+            logger.error(
+                "boot-md agent did not complete (failed=%s, completed=%s): %s",
+                result.get("failed"),
+                result.get("completed"),
+                (result.get("error") or "")[:200],
+            )
+            return
+        response = result.get("final_response") or ""
         if response and "[SILENT]" not in response:
             logger.info("boot-md completed: %s", response[:200])
         else:
