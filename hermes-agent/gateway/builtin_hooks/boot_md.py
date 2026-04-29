@@ -22,9 +22,9 @@ import threading
 
 logger = logging.getLogger("hooks.boot-md")
 
-from hermes_constants import get_hermes_home
-HERMES_HOME = get_hermes_home()
-BOOT_FILE = HERMES_HOME / "BOOT.md"
+from hermes_constants import get_default_hermes_root
+HERMES_ROOT = get_default_hermes_root()
+BOOT_FILE = HERMES_ROOT / "BOOT.md"
 
 
 def _build_boot_prompt(content: str) -> str:
