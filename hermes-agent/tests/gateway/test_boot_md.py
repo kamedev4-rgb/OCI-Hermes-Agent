@@ -79,6 +79,13 @@ class TestRunBootAgent:
         import sys
         monkeypatch.setitem(sys.modules, "run_agent", fake_run_agent)
 
+        # Patch load_config so _run_boot_agent does not need a real config file
+        _fake_cfg = {"model": {"default": "test-model", "provider": "test-provider", "base_url": ""}}
+        import types as _t
+        _fake_cfg_mod = _t.ModuleType("hermes_cli.config")
+        _fake_cfg_mod.load_config = lambda: _fake_cfg
+        monkeypatch.setitem(sys.modules, "hermes_cli.config", _fake_cfg_mod)
+
     def test_failed_result_logs_error_not_completed(self, monkeypatch, tmp_path, caplog):
         """When run_conversation returns failed=True the hook must log an error, not 'completed'."""
         import importlib

@@ -1,4 +1,4 @@
-"""Built-in boot-md hook — run ~/.hermes/BOOT.md on gateway startup.
+"""Built-in boot-md hook -- run ~/.hermes/BOOT.md on gateway startup.
 
 This hook is always registered. It silently skips if no BOOT.md exists.
 To activate, create ``~/.hermes/BOOT.md`` with instructions for the
@@ -12,7 +12,7 @@ Example BOOT.md::
     2. Send a status update to Discord #general
     3. If there are errors in /opt/app/deploy.log, summarize them
 
-The agent runs in a background thread so it doesn't block gateway
+The agent runs in a background thread so it does not block gateway
 startup. If nothing needs attention, it replies with [SILENT] to
 suppress delivery.
 """
@@ -46,9 +46,19 @@ def _run_boot_agent(content: str) -> None:
     """Spawn a one-shot agent session to execute the boot instructions."""
     try:
         from run_agent import AIAgent
+        from hermes_cli.config import load_config
+
+        _cfg = load_config()
+        _model_cfg = _cfg.get("model", {})
+        _model = _model_cfg.get("default") or ""
+        _provider = _model_cfg.get("provider") or ""
+        _base_url = _model_cfg.get("base_url") or ""
 
         prompt = _build_boot_prompt(content)
         agent = AIAgent(
+            model=_model,
+            provider=_provider,
+            base_url=_base_url,
             quiet_mode=True,
             skip_context_files=True,
             skip_memory=True,
@@ -73,7 +83,7 @@ def _run_boot_agent(content: str) -> None:
 
 
 async def handle(event_type: str, context: dict) -> None:
-    """Gateway startup handler — run BOOT.md if it exists."""
+    """Gateway startup handler -- run BOOT.md if it exists."""
     if not BOOT_FILE.exists():
         return
 
@@ -83,7 +93,7 @@ async def handle(event_type: str, context: dict) -> None:
 
     logger.info("Running BOOT.md (%d chars)", len(content))
 
-    # Run in a background thread so we don't block gateway startup.
+    # Run in a background thread so we do not block gateway startup.
     thread = threading.Thread(
         target=_run_boot_agent,
         args=(content,),
