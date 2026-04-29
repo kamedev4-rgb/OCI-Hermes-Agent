@@ -25,8 +25,15 @@ license: CC0-1.0
 
 ### Step 1: git commit（修正前スナップショット）
 
+まず **どの Git ルートを触る変更か** を判定する。
+
+- `~/.hermes/` 配下の profile 設定・SOUL・profile-local skills を変える → `cd ~/.hermes`
+- `~/.hermes/hermes-agent/` 配下の Hermes 本体コードを変える → `cd ~/.hermes/hermes-agent`
+
+その上で対象 repo でスナップショットを作る。
+
 ```bash
-cd ~/.hermes && git add -A && git commit -m "refactor: <目的>（修正前）"
+cd <対象repo> && git add -A && git commit -m "refactor: <目的>（修正前）"
 ```
 
 変更がなくてもコミットを試みる（エラーは無視してよい）。
@@ -35,11 +42,16 @@ cd ~/.hermes && git add -A && git commit -m "refactor: <目的>（修正前）"
 
 ### Step 2: git pull（Claude Code や kame-dev の変更を取り込む）
 
+対象 repo で pull する。
+
 ```bash
-cd ~/.hermes && git pull origin main
+cd <対象repo> && git pull origin main
 ```
 
-`git pull` が以下のように止まることがある:
+**コンフリクトが出たら作業を止めて kame-dev に報告し、指示を仰ぐ。**
+
+**pull が「他の未コミット変更で上書きされる」と言って止まった場合も、勝手に stash / まとめて commit しない。**
+その repo に今回の変更範囲外の未コミット差分が混ざっているので、必ず kame-dev に扱いを確認する。
 
 - `fatal: Need to specify how to reconcile divergent branches.`
 
