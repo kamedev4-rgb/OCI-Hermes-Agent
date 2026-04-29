@@ -8,6 +8,15 @@ metadata:
   hermes:
     tags: [planning, design, implementation, workflow, documentation]
     related_skills: [subagent-driven-development, test-driven-development, requesting-code-review]
+triggers:
+  - "計画"
+  - "設計"
+  - "実装計画"
+  - "プラン"
+  - "手順を考えて"
+  - "どう実装"
+  - "ステップ"
+  - "タスクに分けて"
 ---
 
 # Writing Implementation Plans

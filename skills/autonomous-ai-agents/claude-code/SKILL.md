@@ -8,6 +8,12 @@ metadata:
   hermes:
     tags: [Coding-Agent, Claude, Anthropic, Code-Review, Refactoring, PTY, Automation]
     related_skills: [codex, hermes-agent, opencode]
+triggers:
+  - "Claude Code"
+  - "claude"
+  - "コーディング"
+  - "コード実装"
+  - "機能追加"
 ---
 
 # Claude Code — Hermes Orchestration Guide

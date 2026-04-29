@@ -8,6 +8,13 @@ metadata:
   hermes:
     tags: [hermes, discord, gateway, setup, systemd]
     related_skills: [systematic-debugging]
+triggers:
+  - "Discord"
+  - "ディスコード"
+  - "Bot"
+  - "ボット"
+  - "ゲートウェイ"
+  - "接続"
 ---
 
 # Hermes Discord Gateway Setup

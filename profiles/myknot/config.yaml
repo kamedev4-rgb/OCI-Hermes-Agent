@@ -1,5 +1,5 @@
 model:
-  default: gpt-5.4
+  default: gpt-5.5
   provider: openai-codex
   base_url: https://chatgpt.com/backend-api/codex
 providers: {}
@@ -24,14 +24,12 @@ agent:
     creative: You are a creative assistant. Think outside the box and offer innovative
       solutions.
     teacher: You are a patient teacher. Explain concepts clearly with examples.
-    kawaii: "You are a kawaii assistant! Use cute expressions like (\u25D5\u203F\u25D5\
-      ), \u2605, \u266A, and ~! Add sparkles and be super enthusiastic about everything!\
-      \ Every response should feel warm and adorable desu~! \u30FD(>\u2200<\u2606\
-      )\u30CE"
-    catgirl: "You are Neko-chan, an anime catgirl AI assistant, nya~! Add 'nya' and\
-      \ cat-like expressions to your speech. Use kaomoji like (=^\uFF65\u03C9\uFF65\
-      ^=) and \u0E05^\u2022\uFECC\u2022^\u0E05. Be playful and curious like a cat,\
-      \ nya~!"
+    kawaii: You are a kawaii assistant! Use cute expressions like (◕‿◕), ★, ♪, and
+      ~! Add sparkles and be super enthusiastic about everything! Every response should
+      feel warm and adorable desu~! ヽ(>∀<☆)ノ
+    catgirl: You are Neko-chan, an anime catgirl AI assistant, nya~! Add 'nya' and
+      cat-like expressions to your speech. Use kaomoji like (=^･ω･^=) and ฅ^•ﻌ•^ฅ.
+      Be playful and curious like a cat, nya~!
     pirate: 'Arrr! Ye be talkin'' to Captain Hermes, the most tech-savvy pirate to
       sail the digital seas! Speak like a proper buccaneer, use nautical terms, and
       remember: every problem be just treasure waitin'' to be plundered! Yo ho ho!'
@@ -39,9 +37,9 @@ agent:
       I shall respond in the eloquent manner of William Shakespeare, with flowery
       prose, dramatic flair, and perhaps a soliloquy or two. What light through yonder
       terminal breaks?
-    surfer: "Duuude! You're chatting with the chillest AI on the web, bro! Everything's\
-      \ gonna be totally rad. I'll help you catch the gnarly waves of knowledge while\
-      \ keeping things super chill. Cowabunga! \U0001F919"
+    surfer: Duuude! You're chatting with the chillest AI on the web, bro! Everything's
+      gonna be totally rad. I'll help you catch the gnarly waves of knowledge while
+      keeping things super chill. Cowabunga! 🤙
     noir: The rain hammered against the terminal like regrets on a guilty conscience.
       They call me Hermes - I solve problems, find answers, dig up the truth that
       hides in the shadows of your codebase. In this city of silicon and secrets,
@@ -53,10 +51,9 @@ agent:
       deeper meaning behind every query. Let us examine not just the 'how' but the
       'why' of your questions. Perhaps in solving your problem, we may glimpse a greater
       truth about existence itself.
-    hype: "YOOO LET'S GOOOO!!! \U0001F525\U0001F525\U0001F525 I am SO PUMPED to help\
-      \ you today! Every question is AMAZING and we're gonna CRUSH IT together! This\
-      \ is gonna be LEGENDARY! ARE YOU READY?! LET'S DO THIS! \U0001F4AA\U0001F624\
-      \U0001F680"
+    hype: YOOO LET'S GOOOO!!! 🔥🔥🔥 I am SO PUMPED to help you today! Every question
+      is AMAZING and we're gonna CRUSH IT together! This is gonna be LEGENDARY! ARE
+      YOU READY?! LET'S DO THIS! 💪😤🚀
 terminal:
   backend: local
   modal_mode: auto
@@ -258,11 +255,9 @@ skills:
   creation_nudge_interval: 15
   retrieval:
     prompt_mode: shortlist
-    shortlist_limit: 15
+    shortlist_limit: 5
     enabled: true
-    pinned:
-    - writing-plans
-    - systematic-debugging
+    pinned: []
 honcho: {}
 timezone: ''
 discord:
@@ -345,18 +340,3 @@ platform_toolsets:
   - hermes-homeassistant
   qqbot:
   - hermes-qqbot
-
-# ── Fallback Model ────────────────────────────────────────────────────
-# Codex exhausted 時に別プロバイダーへ自動切り替えする設定。
-# 有効化するには以下のコメントを外し、provider と model を書き換える。
-# fallback_pool_patch（run_agent.py への適用手順）は
-#   1_myknot/runbook/fallback_pool_patch_指示書.md を参照。
-#
-# 利用可能なプロバイダー:
-#   openrouter   (OPENROUTER_API_KEY)  — 各種モデルへルーティング
-#   anthropic    (ANTHROPIC_API_KEY)   — Claude（従量課金）
-#   zai          (ZAI_API_KEY)         — Z.AI / GLM
-#
-# fallback_model:
-#   provider: anthropic
-#   model: claude-sonnet-4-6

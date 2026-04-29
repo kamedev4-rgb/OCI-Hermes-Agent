@@ -8,6 +8,15 @@ metadata:
   hermes:
     tags: [debugging, troubleshooting, problem-solving, root-cause, investigation]
     related_skills: [test-driven-development, writing-plans, subagent-driven-development]
+triggers:
+  - "バグ"
+  - "エラー"
+  - "デバッグ"
+  - "動かない"
+  - "失敗"
+  - "原因を調べて"
+  - "直して"
+  - "不具合"
 ---
 
 # Systematic Debugging
