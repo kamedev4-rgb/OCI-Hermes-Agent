@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS skills (
     skill_path TEXT,
     tags_json TEXT,
     aliases_json TEXT,
+    triggers_json TEXT,
     enabled INTEGER NOT NULL DEFAULT 1,
     pinned INTEGER NOT NULL DEFAULT 0,
     hidden_from_prompt INTEGER NOT NULL DEFAULT 0,
@@ -90,6 +91,7 @@ class SkillIndexDB:
             "skill_path": _normalize_text(metadata.get("skill_path")),
             "tags_json": _json_dumps(metadata.get("tags") or []),
             "aliases_json": _json_dumps(metadata.get("aliases") or []),
+            "triggers_json": _json_dumps(metadata.get("triggers") or []),
             "enabled": int(bool(metadata.get("enabled", True))),
             "pinned": int(bool(metadata.get("pinned", False))),
             "hidden_from_prompt": int(bool(metadata.get("hidden_from_prompt", False))),
@@ -106,9 +108,9 @@ class SkillIndexDB:
             """
             INSERT INTO skills (
                 skill_name, category, description, source, skill_dir, skill_path,
-                tags_json, aliases_json, enabled, pinned, hidden_from_prompt,
+                tags_json, aliases_json, triggers_json, enabled, pinned, hidden_from_prompt,
                 created_at, updated_at, last_seen_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(skill_name) DO UPDATE SET
                 category=excluded.category,
                 description=excluded.description,
@@ -117,6 +119,7 @@ class SkillIndexDB:
                 skill_path=COALESCE(excluded.skill_path, skills.skill_path),
                 tags_json=excluded.tags_json,
                 aliases_json=excluded.aliases_json,
+                triggers_json=excluded.triggers_json,
                 enabled=COALESCE(excluded.enabled, skills.enabled),
                 pinned=excluded.pinned,
                 hidden_from_prompt=excluded.hidden_from_prompt,
@@ -132,6 +135,7 @@ class SkillIndexDB:
                 payload["skill_path"],
                 payload["tags_json"],
                 payload["aliases_json"],
+                payload["triggers_json"],
                 payload["enabled"],
                 payload["pinned"],
                 payload["hidden_from_prompt"],
@@ -313,6 +317,7 @@ class SkillIndexDB:
                 str(row.get("description") or "").lower(),
                 str(row.get("tags_json") or "").lower(),
                 str(row.get("aliases_json") or "").lower(),
+                str(row.get("triggers_json") or "").lower(),
             ]
             score = 0.0
             for term in terms:
@@ -326,6 +331,8 @@ class SkillIndexDB:
                     score += 4
                 if term in haystacks[4]:
                     score += 5
+            if term in haystacks[5]:  # triggers
+                    score += 20
 
             if query_text:
                 if query_text in haystacks[0]:
@@ -336,6 +343,8 @@ class SkillIndexDB:
                     score += 8
                 if query_text in haystacks[4]:
                     score += 10
+                if query_text in haystacks[5]:  # triggers full match
+                    score += 25
 
             for chunk in cjk_chunks:
                 if chunk in haystacks[0]:
@@ -346,6 +355,8 @@ class SkillIndexDB:
                     score += 6
                 if chunk in haystacks[4]:
                     score += 7
+                if chunk in haystacks[5]:  # triggers CJK
+                    score += 15
 
             if row.get("skill_name") in pinned or bool(row.get("pinned")):
                 score += 100

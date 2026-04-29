@@ -9174,10 +9174,17 @@ class AIAgent:
 
             # Inject ephemeral prefill messages right after the system prompt
             # but before conversation history. Same API-call-time-only pattern.
+            # GPT-5/Codex: use "developer" role so prefill outranks history.
             if self.prefill_messages:
                 sys_offset = 1 if effective_system else 0
+                _pfm_role = "developer" if any(
+                    p in (self.model or "").lower() for p in ("gpt-5", "codex")
+                ) else "system"
                 for idx, pfm in enumerate(self.prefill_messages):
-                    api_messages.insert(sys_offset + idx, pfm.copy())
+                    _msg = pfm.copy()
+                    if _msg.get("role") == "system":
+                        _msg["role"] = _pfm_role
+                    api_messages.insert(sys_offset + idx, _msg)
 
             # Apply Anthropic prompt caching for Claude models via OpenRouter.
             # Auto-detected: if model name contains "claude" and base_url is OpenRouter,

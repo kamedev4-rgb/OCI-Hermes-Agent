@@ -517,6 +517,10 @@ def _build_snapshot_entry(
     if isinstance(platforms, str):
         platforms = [platforms]
 
+    triggers = frontmatter.get("triggers") or []
+    if isinstance(triggers, str):
+        triggers = [triggers]
+
     return {
         "skill_name": skill_name,
         "category": category,
@@ -524,6 +528,7 @@ def _build_snapshot_entry(
         "description": description,
         "platforms": [str(p).strip() for p in platforms if str(p).strip()],
         "conditions": extract_skill_conditions(frontmatter),
+        "triggers": [str(t).strip() for t in triggers if str(t).strip()],
     }
 
 
@@ -692,6 +697,7 @@ def build_skills_system_prompt(
                     "skill_name": frontmatter_name,
                     "category": category,
                     "description": entry.get("description", ""),
+                    "triggers": entry.get("triggers") or [],
                     "source": "local",
                 }
             )
@@ -725,6 +731,7 @@ def build_skills_system_prompt(
                     "skill_name": entry["frontmatter_name"],
                     "category": entry["category"],
                     "description": entry["description"],
+                    "triggers": entry.get("triggers") or [],
                     "source": "local",
                 }
             )
@@ -857,30 +864,15 @@ def build_skills_system_prompt(
 
         index_lines = _build_skill_index_lines(grouped_for_prompt, category_descriptions)
         result = (
-            "## Skills (mandatory)\n"
-            "Before replying, scan the skills below. If a skill matches or is even partially relevant "
-            "to your task, you MUST load it with skill_view(name) and follow its instructions. "
-            "Err on the side of loading — it is always better to have context you don't need "
-            "than to miss critical steps, pitfalls, or established workflows. "
-            "Skills contain specialized knowledge — API endpoints, tool-specific commands, "
-            "and proven workflows that outperform general-purpose approaches. Load the skill "
-            "even if you think you could handle the task with basic tools like web_search or terminal. "
-            "Skills also encode the user's preferred approach, conventions, and quality standards "
-            "for tasks like code review, planning, and testing — load them even for tasks you "
-            "already know how to do, because the skill defines how it should be done here.\n"
-            "If a skill has issues, fix it with skill_manage(action='patch').\n"
-            "After difficult/iterative tasks, offer to save as a skill. "
-            "If a skill you loaded was missing steps, had wrong commands, or needed "
-            "pitfalls you discovered, update it before finishing.\n"
+            "## Skills\n"
+            "関連するスキルがあれば skill_view(name) で確認してから使う。"
+            "スキルの手順・規約には従うこと。\n"
             "\n"
             "<available_skills>\n"
             + "\n".join(index_lines) + "\n"
             "</available_skills>\n"
             + partial_note
-            + "\n\n"
-            "Only proceed without loading a skill if genuinely none are relevant to the task."
         )
-
     # ── Store in LRU cache ────────────────────────────────────────────
     with _SKILLS_PROMPT_CACHE_LOCK:
         _SKILLS_PROMPT_CACHE[cache_key] = result
