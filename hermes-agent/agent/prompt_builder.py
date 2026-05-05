@@ -8,8 +8,6 @@ import json
 import logging
 import os
 import re
-import threading
-from collections import OrderedDict
 from pathlib import Path
 
 from hermes_constants import get_hermes_home, get_skills_dir, is_wsl
@@ -426,9 +424,6 @@ CONTEXT_TRUNCATE_TAIL_RATIO = 0.2
 # Skills prompt cache
 # =========================================================================
 
-_SKILLS_PROMPT_CACHE_MAX = 8
-_SKILLS_PROMPT_CACHE: OrderedDict[tuple, str] = OrderedDict()
-_SKILLS_PROMPT_CACHE_LOCK = threading.Lock()
 _SKILLS_SNAPSHOT_VERSION = 2
 
 
@@ -437,9 +432,7 @@ def _skills_prompt_snapshot_path() -> Path:
 
 
 def clear_skills_system_prompt_cache(*, clear_snapshot: bool = False) -> None:
-    """Drop the in-process skills prompt cache (and optionally the disk snapshot)."""
-    with _SKILLS_PROMPT_CACHE_LOCK:
-        _SKILLS_PROMPT_CACHE.clear()
+    """Optionally clear the disk snapshot (in-process LRU cache has been removed)."""
     if clear_snapshot:
         try:
             _skills_prompt_snapshot_path().unlink(missing_ok=True)
@@ -517,6 +510,8 @@ def _build_snapshot_entry(
     if isinstance(platforms, str):
         platforms = [platforms]
 
+    description_full = str(frontmatter.get("description_full") or "").strip()
+
     triggers = frontmatter.get("triggers") or []
     if isinstance(triggers, str):
         triggers = [triggers]
@@ -526,6 +521,8 @@ def _build_snapshot_entry(
         "category": category,
         "frontmatter_name": str(frontmatter.get("name", skill_name)),
         "description": description,
+        "description_full": description_full or description,
+        "skill_dir": str(skill_file.parent),
         "platforms": [str(p).strip() for p in platforms if str(p).strip()],
         "conditions": extract_skill_conditions(frontmatter),
         "triggers": [str(t).strip() for t in triggers if str(t).strip()],
@@ -634,33 +631,7 @@ def build_skills_system_prompt(
     if not skills_dir.exists() and not external_dirs:
         return ""
 
-    # ── Layer 1: in-process LRU cache ─────────────────────────────────
-    # Include the resolved platform so per-platform disabled-skill lists
-    # produce distinct cache entries (gateway serves multiple platforms).
-    from gateway.session_context import get_session_env
-    _platform_hint = (
-        os.environ.get("HERMES_PLATFORM")
-        or get_session_env("HERMES_SESSION_PLATFORM")
-        or ""
-    )
     retrieval_settings = get_skill_retrieval_settings()
-    _user_message_key = ((user_message or "").strip().lower())[:256]
-    cache_key = (
-        str(skills_dir.resolve()),
-        tuple(str(d) for d in external_dirs),
-        tuple(sorted(str(t) for t in (available_tools or set()))),
-        tuple(sorted(str(ts) for ts in (available_toolsets or set()))),
-        _platform_hint,
-        retrieval_settings.get("prompt_mode", "legacy"),
-        int(retrieval_settings.get("shortlist_limit", 10)),
-        _user_message_key,
-    )
-    with _SKILLS_PROMPT_CACHE_LOCK:
-        cached = _SKILLS_PROMPT_CACHE.get(cache_key)
-        if cached is not None:
-            _SKILLS_PROMPT_CACHE.move_to_end(cache_key)
-            return cached
-
     disabled = get_disabled_skill_names()
 
     # ── Layer 2: disk snapshot ────────────────────────────────────────
@@ -697,7 +668,8 @@ def build_skills_system_prompt(
                     "skill_name": frontmatter_name,
                     "category": category,
                     "description": entry.get("description", ""),
-                    "triggers": entry.get("triggers") or [],
+                    "description_full": entry.get("description_full") or entry.get("description", ""),
+                    "skill_dir": entry.get("skill_dir", ""),
                     "source": "local",
                 }
             )
@@ -731,7 +703,8 @@ def build_skills_system_prompt(
                     "skill_name": entry["frontmatter_name"],
                     "category": entry["category"],
                     "description": entry["description"],
-                    "triggers": entry.get("triggers") or [],
+                    "description_full": entry.get("description_full") or entry["description"],
+                    "skill_dir": entry.get("skill_dir", ""),
                     "source": "local",
                 }
             )
@@ -796,6 +769,8 @@ def build_skills_system_prompt(
                         "skill_name": frontmatter_name,
                         "category": entry["category"],
                         "description": entry["description"],
+                        "description_full": entry.get("description_full") or entry["description"],
+                        "skill_dir": entry.get("skill_dir", ""),
                         "source": "external",
                     }
                 )
@@ -829,9 +804,9 @@ def build_skills_system_prompt(
                     from tools.skill_index_db import SkillIndexDB, get_skill_index_db_path
 
                     db = SkillIndexDB(get_skill_index_db_path(skills_dir))
-                    for entry in visible_skill_entries:
-                        db.upsert_skill(entry)
+                    db.upsert_skills_batch(visible_skill_entries)
                     allowed_names = {entry["skill_name"] for entry in visible_skill_entries if entry.get("skill_name")}
+                    db.delete_skills_not_in(allowed_names)
                     candidate_rows = db.get_prompt_candidates(
                         user_message=user_message,
                         limit=int(retrieval_settings.get("shortlist_limit", 10)),
@@ -864,21 +839,29 @@ def build_skills_system_prompt(
 
         index_lines = _build_skill_index_lines(grouped_for_prompt, category_descriptions)
         result = (
-            "## Skills\n"
-            "関連するスキルがあれば skill_view(name) で確認してから使う。"
-            "スキルの手順・規約には従うこと。\n"
+            "## Skills (mandatory)\n"
+            "Before replying, scan the skills below. If a skill matches or is even partially relevant "
+            "to your task, you MUST load it with skill_view(name) and follow its instructions. "
+            "Err on the side of loading — it is always better to have context you don't need "
+            "than to miss critical steps, pitfalls, or established workflows. "
+            "Skills contain specialized knowledge — API endpoints, tool-specific commands, "
+            "and proven workflows that outperform general-purpose approaches. Load the skill "
+            "even if you think you could handle the task with basic tools like web_search or terminal. "
+            "Skills also encode the user's preferred approach, conventions, and quality standards "
+            "for tasks like code review, planning, and testing — load them even for tasks you "
+            "already know how to do, because the skill defines how it should be done here.\n"
+            "If a skill has issues, fix it with skill_manage(action='patch').\n"
+            "After difficult/iterative tasks, offer to save as a skill. "
+            "If a skill you loaded was missing steps, had wrong commands, or needed "
+            "pitfalls you discovered, update it before finishing.\n"
             "\n"
             "<available_skills>\n"
             + "\n".join(index_lines) + "\n"
             "</available_skills>\n"
             + partial_note
+            + "\n\n"
+            "Only proceed without loading a skill if genuinely none are relevant to the task."
         )
-    # ── Store in LRU cache ────────────────────────────────────────────
-    with _SKILLS_PROMPT_CACHE_LOCK:
-        _SKILLS_PROMPT_CACHE[cache_key] = result
-        _SKILLS_PROMPT_CACHE.move_to_end(cache_key)
-        while len(_SKILLS_PROMPT_CACHE) > _SKILLS_PROMPT_CACHE_MAX:
-            _SKILLS_PROMPT_CACHE.popitem(last=False)
 
     return result
 
