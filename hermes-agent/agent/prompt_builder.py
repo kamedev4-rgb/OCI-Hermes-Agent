@@ -804,9 +804,36 @@ def build_skills_system_prompt(
                     from tools.skill_index_db import SkillIndexDB, get_skill_index_db_path
 
                     db = SkillIndexDB(get_skill_index_db_path(skills_dir))
-                    db.upsert_skills_batch(visible_skill_entries)
-                    allowed_names = {entry["skill_name"] for entry in visible_skill_entries if entry.get("skill_name")}
-                    db.delete_skills_not_in(allowed_names)
+
+                    # platformフィルタ前の全スキル名を収集（ゾンビ削除に使う・F3対処）
+                    # visible_skill_entries はplatform/conditions フィルタ済みのため使えない
+                    if snapshot is not None:
+                        fs_all_skill_names = {
+                            str(e.get("frontmatter_name") or e.get("skill_name") or "")
+                            for e in snapshot.get("skills", [])
+                            if e.get("frontmatter_name") or e.get("skill_name")
+                        }
+                    else:
+                        fs_all_skill_names = {
+                            str(e.get("frontmatter_name") or e.get("skill_name") or "")
+                            for e in skill_entries
+                            if e.get("frontmatter_name") or e.get("skill_name")
+                        }
+                    fs_all_skill_names.discard("")
+
+                    allowed_names = {
+                        entry["skill_name"] for entry in visible_skill_entries
+                        if entry.get("skill_name")
+                    }
+
+                    # DB起点: 全件存在 + description一致 + vectorあり ならupsertスキップ（F4/F2対処）
+                    if not db.has_all_skills(visible_skill_entries):
+                        db.upsert_skills_batch(visible_skill_entries)
+
+                    # ゾンビ削除は常に実行（upsertスキップ時も実施・F1対処）
+                    # platformフィルタ前の全スキル名を渡す（F3対処）
+                    db.delete_skills_not_in(fs_all_skill_names)
+
                     candidate_rows = db.get_prompt_candidates(
                         user_message=user_message,
                         limit=int(retrieval_settings.get("shortlist_limit", 10)),

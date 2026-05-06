@@ -580,13 +580,16 @@ def _find_all_skills(*, skip_disabled: bool = False) -> List[Dict[str, Any]]:
                 if len(description) > MAX_DESCRIPTION_LENGTH:
                     description = description[:MAX_DESCRIPTION_LENGTH - 3] + "..."
 
+                description_full = str(frontmatter.get("description_full") or description)
                 category = _get_category_from_path(skill_md)
 
                 seen_names.add(name)
                 skills.append({
                     "name": name,
                     "description": description,
+                    "description_full": description_full,
                     "category": category,
+                    "skill_dir": str(skill_dir),
                 })
 
             except (UnicodeDecodeError, PermissionError) as e:
@@ -660,6 +663,7 @@ def _sync_skills_to_index(
                     "skill_name": skill.get("name"),
                     "category": skill.get("category"),
                     "description": skill.get("description"),
+                    "description_full": skill.get("description_full") or skill.get("description"),
                     "source": skill.get("source") or source,
                     "skill_dir": skill.get("skill_dir"),
                     "skill_path": skill.get("skill_path"),

@@ -1,0 +1,24 @@
+name: secret-manager
+description: |
+  既存スキルに Bitwarden secrets.py を組み込む作業を行う。
+  対象スキルのコードを読み、環境変数やハードコードされたシークレットを
+  get_secret() 呼び出しに置き換える。
+
+triggers:
+  - "シークレットを組み込んで"
+  - "Bitwardenを連携して"
+  - "secrets.pyを使うように"
+  - "シークレット管理を追加"
+  - "APIキーをBitwardenから取得"
+
+steps:
+  - name: identify_target
+    description: 対象スキルのコードを読み、シークレットの取得箇所を特定する
+  - name: check_bitwarden
+    description: Bitwardenに対応するアイテムが登録済みか確認する
+  - name: patch_skill
+    description: get_secret() 呼び出しに置き換えてコードを修正する
+  - name: test
+    description: 修正後のスキルが正常に動作するか確認する
+  - name: notify
+    description: 作業結果を報告する

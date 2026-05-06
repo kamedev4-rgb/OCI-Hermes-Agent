@@ -115,7 +115,8 @@ read /etc/caddy/Caddyfile
 ```
 
 Interpretation:
-- `HTTP 200` + body contains `Caddy works!` => web surface is wrong / degraded
+- `HTTP 200` + body contains `Caddy works!` => web surface is wrong / degraded unless MyKNOT is intentionally Discord-first and HTTP is explicitly unused
+- `HTTP 200` + body contains `MyKNOT SaaS Server is running` with a Caddyfile `respond` rule => host-level MyKNOT liveness page is configured; treat as HTTP surface healthy for the daily check unless a full web UI/API is known to be required
 - Caddyfile showing only `root * /usr/share/caddy` and `file_server` => default site, not MyKNOT
 
 ### 6) Database health
@@ -153,15 +154,30 @@ search in /home/ubuntu/.hermes/profiles/myknot/logs for:
 
 High-value signals:
 - `Connected as MyKNOT#3032`
-- recent inbound and response-ready lines = bot is actually serving traffic
+- fresh `RESUMED session` lines on today's date = Discord websocket is still alive even if there has been no user traffic
+- recent inbound and response-ready lines = bot is actually serving traffic; if none exist today, report that only connection continuity was verified and active response handling was not exercised
 - `Discord bot token already in use` = duplicate gateway conflict
-- auth `401` = model/provider auth issue affecting replies
+- auth `401` or quota/rate-limit `429` = model/provider auth or quota issue affecting replies
+
+If broad log search output is truncated, re-read targeted ranges around the latest `Connected as` / `RESUMED` / inbound lines with `read_file`, and inspect `errors.log` for today's date before concluding the current state. For very large logs, use `execute_code` or a local Python one-liner to summarize only the last relevant hits from `agent.log` and `errors.log` (patterns: today's date, `Connected as`, `RESUMED session`, `Disconnected`, `inbound message`, `response ready`, `ERROR`, `401`, `429`, `Discord bot token already in use`) instead of dumping full files into context.
+
+If today's log only shows `RESUMED session` continuity and no inbound/response-ready lines, classify Discord connectivity as healthy when the service is active and the current PID has an established Discord socket, but explicitly report that active response handling was not exercised today.
 
 ### 8) Cron / config drift check
 
 ```bash
 HERMES_HOME=/home/ubuntu/.hermes/profiles/myknot hermes cron list || true
 ```
+
+Also run/read:
+```bash
+HERMES_HOME=/home/ubuntu/.hermes/profiles/myknot hermes doctor || true
+```
+
+Treat `doctor` findings as drift/risk, not necessarily outage. Examples:
+- missing Mem0 API key while `memory.provider: mem0` is configured => memory subsystem risk/config drift
+- npm vulnerability reports in optional tools => maintenance risk
+- missing optional provider keys/tool dependencies => capability limitation unless the affected tool is required for core MyKNOT operation
 
 Also inspect:
 - `/home/ubuntu/.hermes/profiles/myknot/config.yaml`

@@ -1,0 +1,13 @@
+version: "3.9"
+services:
+  app:
+    build: .
+    container_name: saas-{{APP_NAME}}
+    restart: unless-stopped
+    ports:
+      - "{{PORT}}:3000"
+    labels:
+      - "saas-app=true"
+      - "saas-name={{APP_NAME}}"
+    volumes:
+      - ./data:/app/data

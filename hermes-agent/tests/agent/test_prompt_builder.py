@@ -7,6 +7,10 @@ import sys
 
 import pytest
 
+# Skills prompt tests patch get_skill_retrieval_settings globally per test;
+# running them in the same xdist group ensures monkeypatch restores cleanly.
+pytestmark = pytest.mark.xdist_group("skills_prompt")
+
 from agent.prompt_builder import (
     _scan_context_content,
     _truncate_content,
@@ -240,10 +244,18 @@ class TestPromptBuilderImports:
 # =========================================================================
 
 
+def _write_legacy_config(path):
+    """Write a minimal config.yaml that forces legacy prompt mode."""
+    config = path / "config.yaml"
+    config.write_text("skills:\n  retrieval:\n    prompt_mode: legacy\n    enabled: false\n")
+
+
 class TestBuildSkillsSystemPrompt:
     @pytest.fixture(autouse=True)
-    def _clear_skills_cache(self):
-        """Ensure the in-process skills prompt cache doesn't leak between tests."""
+    def _clear_skills_cache(self, monkeypatch, tmp_path):
+        """Set HERMES_HOME to tmp_path, write legacy config, clear disk snapshot."""
+        monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+        _write_legacy_config(tmp_path)
         from agent.prompt_builder import clear_skills_system_prompt_cache
         clear_skills_system_prompt_cache(clear_snapshot=True)
         yield
@@ -410,55 +422,76 @@ class TestBuildSkillsSystemPrompt:
         result = build_skills_system_prompt()
         assert "backend-skill" in result
 
-    def test_shortlist_prefers_relevant_skills_and_adds_fallback_note(self, monkeypatch, tmp_path):
+
+_SHORTLIST_SETTINGS = {"enabled": True, "prompt_mode": "shortlist", "shortlist_limit": 1}
+
+
+class TestBuildSkillsSystemPromptShortlist:
+    """Tests that require shortlist mode to be active."""
+
+    @pytest.fixture(autouse=True)
+    def _clear_skills_cache(self, monkeypatch, tmp_path):
         monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+        from agent.prompt_builder import clear_skills_system_prompt_cache
+        clear_skills_system_prompt_cache(clear_snapshot=True)
+        yield
+        clear_skills_system_prompt_cache(clear_snapshot=True)
+
+    def test_shortlist_prefers_relevant_skills_and_adds_fallback_note(self, monkeypatch, tmp_path):
         monkeypatch.setenv("HERMES_PLATFORM", "discord")
 
         coding_dir = tmp_path / "skills" / "coding"
         slide_dir = tmp_path / "skills" / "productivity"
         (coding_dir / "python-debug").mkdir(parents=True)
         (coding_dir / "python-debug" / "SKILL.md").write_text(
-            "---\nname: python-debug\ndescription: Debug Python scripts\nmetadata:\n  hermes:\n    tags: [python, debugging]\n---\n"
+            "---\nname: python-debug\ndescription: Debug Python scripts\ndescription_full: Debug Python scripts in detail\nmetadata:\n  hermes:\n    tags: [python, debugging]\n---\n"
         )
         (slide_dir / "powerpoint").mkdir(parents=True)
         (slide_dir / "powerpoint" / "SKILL.md").write_text(
-            "---\nname: powerpoint\ndescription: Work with slide decks\nmetadata:\n  hermes:\n    tags: [slides, pptx]\n---\n"
+            "---\nname: powerpoint\ndescription: Work with slide decks\ndescription_full: Work with PowerPoint slide decks\nmetadata:\n  hermes:\n    tags: [slides, pptx]\n---\n"
         )
 
-        result = build_skills_system_prompt(user_message="Please debug this python script")
+        from unittest.mock import patch, MagicMock
+        mock_db = MagicMock()
+        mock_db.has_all_skills.return_value = True  # DB最新状態 → upsertスキップ
+        mock_db.get_prompt_candidates.return_value = [
+            {"skill_name": "python-debug", "category": "coding", "description": "Debug Python scripts"},
+        ]
+        with patch("agent.prompt_builder.get_skill_retrieval_settings", return_value=_SHORTLIST_SETTINGS), \
+             patch("tools.skill_index_db.SkillIndexDB", return_value=mock_db):
+            result = build_skills_system_prompt(user_message="Please debug this python script")
 
         assert "python-debug" in result
         assert "Other skills exist but are not shown here" in result
         assert "powerpoint" not in result
 
     def test_shortlist_empty_result_does_not_fall_back_to_legacy_list(self, monkeypatch, tmp_path):
-        monkeypatch.setenv("HERMES_HOME", str(tmp_path))
         monkeypatch.setenv("HERMES_PLATFORM", "discord")
 
         coding_dir = tmp_path / "skills" / "coding"
         slide_dir = tmp_path / "skills" / "productivity"
         (coding_dir / "python-debug").mkdir(parents=True)
         (coding_dir / "python-debug" / "SKILL.md").write_text(
-            "---\nname: python-debug\ndescription: Debug Python scripts\nmetadata:\n  hermes:\n    tags: [python, debugging]\n---\n"
+            "---\nname: python-debug\ndescription: Debug Python scripts\ndescription_full: Debug Python scripts in detail\nmetadata:\n  hermes:\n    tags: [python, debugging]\n---\n"
         )
         (slide_dir / "powerpoint").mkdir(parents=True)
         (slide_dir / "powerpoint" / "SKILL.md").write_text(
-            "---\nname: powerpoint\ndescription: Work with slide decks\nmetadata:\n  hermes:\n    tags: [slides, pptx]\n---\n"
+            "---\nname: powerpoint\ndescription: Work with slide decks\ndescription_full: Work with PowerPoint slide decks\nmetadata:\n  hermes:\n    tags: [slides, pptx]\n---\n"
         )
 
-        monkeypatch.setattr(
-            "tools.skill_index_db.SkillIndexDB.get_prompt_candidates",
-            lambda self, **kwargs: [],
-        )
-
-        result = build_skills_system_prompt(user_message="Please debug this python script")
+        from unittest.mock import patch, MagicMock
+        mock_db = MagicMock()
+        mock_db.has_all_skills.return_value = True  # DB最新状態 → upsertスキップ
+        mock_db.get_prompt_candidates.return_value = []
+        with patch("agent.prompt_builder.get_skill_retrieval_settings", return_value=_SHORTLIST_SETTINGS), \
+             patch("tools.skill_index_db.SkillIndexDB", return_value=mock_db):
+            result = build_skills_system_prompt(user_message="Please debug this python script")
 
         assert "python-debug" not in result
         assert "powerpoint" not in result
         assert "No shortlisted skills matched this request" in result
 
     def test_shortlist_exception_falls_back_to_legacy_list(self, monkeypatch, tmp_path):
-        monkeypatch.setenv("HERMES_HOME", str(tmp_path))
         monkeypatch.setenv("HERMES_PLATFORM", "discord")
 
         coding_dir = tmp_path / "skills" / "coding"
@@ -472,12 +505,12 @@ class TestBuildSkillsSystemPrompt:
             "---\nname: powerpoint\ndescription: Work with slide decks\nmetadata:\n  hermes:\n    tags: [slides, pptx]\n---\n"
         )
 
-        def _boom(self, **kwargs):
-            raise RuntimeError("db down")
-
-        monkeypatch.setattr("tools.skill_index_db.SkillIndexDB.get_prompt_candidates", _boom)
-
-        result = build_skills_system_prompt(user_message="Please debug this python script")
+        from unittest.mock import patch, MagicMock
+        mock_db = MagicMock()
+        mock_db.get_prompt_candidates.side_effect = RuntimeError("db down")
+        with patch("agent.prompt_builder.get_skill_retrieval_settings", return_value=_SHORTLIST_SETTINGS), \
+             patch("tools.skill_index_db.SkillIndexDB", return_value=mock_db):
+            result = build_skills_system_prompt(user_message="Please debug this python script")
 
         assert "python-debug" in result
         assert "powerpoint" in result
@@ -926,7 +959,9 @@ class TestSkillShouldShow:
 
 class TestBuildSkillsSystemPromptConditional:
     @pytest.fixture(autouse=True)
-    def _clear_skills_cache(self):
+    def _clear_skills_cache(self, monkeypatch, tmp_path):
+        monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+        _write_legacy_config(tmp_path)
         from agent.prompt_builder import clear_skills_system_prompt_cache
         clear_skills_system_prompt_cache(clear_snapshot=True)
         yield
@@ -1107,4 +1142,77 @@ class TestOpenAIModelExecutionGuidance:
 # =========================================================================
 
 
+class TestShortlistG1Fixes:
+    """G1の修正内容を検証するテスト（F1/F2/F3/F4対処）。"""
+
+    @pytest.fixture(autouse=True)
+    def _setup(self, monkeypatch, tmp_path):
+        monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+        monkeypatch.setenv("HERMES_PLATFORM", "discord")
+        from agent.prompt_builder import clear_skills_system_prompt_cache
+        clear_skills_system_prompt_cache(clear_snapshot=True)
+        self.tmp_path = tmp_path
+        # テスト用スキルファイルを作成
+        skill_dir = tmp_path / "skills" / "coding" / "python-debug"
+        skill_dir.mkdir(parents=True)
+        (skill_dir / "SKILL.md").write_text(
+            "---\nname: python-debug\ndescription: Debug Python\n"
+            "description_full: Debug Python scripts in detail\n---\n"
+        )
+        yield
+        clear_skills_system_prompt_cache(clear_snapshot=True)
+
+    def test_shortlist_skips_upsert_when_db_has_all_skills(self, monkeypatch):
+        """has_all_skills=True の時に upsert_batch が呼ばれないこと（F4対処）。"""
+        from unittest.mock import patch, MagicMock
+        mock_db = MagicMock()
+        mock_db.has_all_skills.return_value = True
+        mock_db.get_prompt_candidates.return_value = [
+            {"skill_name": "python-debug", "category": "coding", "description": "Debug Python"},
+        ]
+        with patch("agent.prompt_builder.get_skill_retrieval_settings", return_value=_SHORTLIST_SETTINGS), \
+             patch("tools.skill_index_db.SkillIndexDB", return_value=mock_db):
+            build_skills_system_prompt(user_message="debug this")
+        mock_db.upsert_skills_batch.assert_not_called()
+
+    def test_shortlist_runs_upsert_when_db_missing_skills(self, monkeypatch):
+        """has_all_skills=False の時に upsert_batch が実行されること（F4対処）。"""
+        from unittest.mock import patch, MagicMock
+        mock_db = MagicMock()
+        mock_db.has_all_skills.return_value = False
+        mock_db.get_prompt_candidates.return_value = [
+            {"skill_name": "python-debug", "category": "coding", "description": "Debug Python"},
+        ]
+        with patch("agent.prompt_builder.get_skill_retrieval_settings", return_value=_SHORTLIST_SETTINGS), \
+             patch("tools.skill_index_db.SkillIndexDB", return_value=mock_db):
+            build_skills_system_prompt(user_message="debug this")
+        mock_db.upsert_skills_batch.assert_called_once()
+
+    def test_delete_skills_not_in_always_called(self, monkeypatch):
+        """upsertスキップ時でも delete_skills_not_in が呼ばれること（F1対処）。"""
+        from unittest.mock import patch, MagicMock
+        mock_db = MagicMock()
+        mock_db.has_all_skills.return_value = True  # upsertをスキップさせる
+        mock_db.get_prompt_candidates.return_value = []
+        with patch("agent.prompt_builder.get_skill_retrieval_settings", return_value=_SHORTLIST_SETTINGS), \
+             patch("tools.skill_index_db.SkillIndexDB", return_value=mock_db):
+            build_skills_system_prompt(user_message="debug this")
+        # upsertスキップでも delete は呼ばれる
+        mock_db.delete_skills_not_in.assert_called_once()
+        mock_db.upsert_skills_batch.assert_not_called()
+
+    def test_delete_uses_fs_all_names_set(self, monkeypatch):
+        """delete_skills_not_in に set が渡され、スキルの名前が含まれること（F3対処）。"""
+        from unittest.mock import patch, MagicMock
+        mock_db = MagicMock()
+        mock_db.has_all_skills.return_value = True
+        mock_db.get_prompt_candidates.return_value = []
+        with patch("agent.prompt_builder.get_skill_retrieval_settings", return_value=_SHORTLIST_SETTINGS), \
+             patch("tools.skill_index_db.SkillIndexDB", return_value=mock_db):
+            build_skills_system_prompt(user_message="debug this")
+        mock_db.delete_skills_not_in.assert_called_once()
+        args = mock_db.delete_skills_not_in.call_args[0][0]
+        assert isinstance(args, set), "delete_skills_not_in には set を渡す"
+        # スキルファイルのfrontmatter name が渡される
+        assert "python-debug" in args
 

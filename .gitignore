@@ -88,3 +88,21 @@ discord_threads.json
 
 # ========== バックアップ ==========
 config.yaml.bak*
+
+# ========== DB バックアップ（自動生成バイナリ） ==========
+*.db.bak*
+**/*.db.bak*
+*.bak
+**/*.bak
+
+# ========== 動的ランタイムファイル ==========
+cc_status.json
+**/cc_status.json
+feishu_seen_message_ids.json
+**/feishu_seen_message_ids.json
+.restart_failure_counts
+**/.restart_failure_counts
+pairing/
+**/pairing/
+BOOT.md
+**/BOOT.md
