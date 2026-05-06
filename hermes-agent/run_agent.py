@@ -6930,6 +6930,22 @@ class AIAgent:
             if not instructions:
                 instructions = DEFAULT_AGENT_IDENTITY
 
+            # Responses API ignores "developer" role in input items — extract
+            # prefill messages (developer role) and append them to instructions
+            # so they reach the model as part of the system-level guidance.
+            _prefill_parts = []
+            _filtered_payload = []
+            for _m in payload_messages:
+                if isinstance(_m, dict) and _m.get("role") == "developer":
+                    _content = str(_m.get("content") or "").strip()
+                    if _content:
+                        _prefill_parts.append(_content)
+                else:
+                    _filtered_payload.append(_m)
+            if _prefill_parts:
+                instructions = instructions + "\n\n" + "\n".join(_prefill_parts)
+            payload_messages = _filtered_payload
+
             is_github_responses = (
                 "models.github.ai" in self.base_url.lower()
                 or "api.githubcopilot.com" in self.base_url.lower()
@@ -9174,17 +9190,10 @@ class AIAgent:
 
             # Inject ephemeral prefill messages right after the system prompt
             # but before conversation history. Same API-call-time-only pattern.
-            # GPT-5/Codex: use "developer" role so prefill outranks history.
             if self.prefill_messages:
                 sys_offset = 1 if effective_system else 0
-                _pfm_role = "developer" if any(
-                    p in (self.model or "").lower() for p in ("gpt-5", "codex")
-                ) else "system"
                 for idx, pfm in enumerate(self.prefill_messages):
-                    _msg = pfm.copy()
-                    if _msg.get("role") == "system":
-                        _msg["role"] = _pfm_role
-                    api_messages.insert(sys_offset + idx, _msg)
+                    api_messages.insert(sys_offset + idx, pfm.copy())
 
             # Apply Anthropic prompt caching for Claude models via OpenRouter.
             # Auto-detected: if model name contains "claude" and base_url is OpenRouter,

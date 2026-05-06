@@ -1310,3 +1310,40 @@ def test_preflight_codex_input_deduplicates_reasoning_ids(monkeypatch):
     # IDs must be stripped — with store=False the API 404s on id lookups.
     for it in reasoning_items:
         assert "id" not in it
+
+
+def test_build_api_kwargs_codex_prefill_appended_to_instructions(monkeypatch):
+    """developer-role prefill messages must be appended to instructions, not dropped."""
+    agent = _build_agent(monkeypatch)
+    kwargs = agent._build_api_kwargs(
+        [
+            {"role": "system", "content": "You are Hermes."},
+            {"role": "developer", "content": "回答は最短で書いてください。"},
+            {"role": "developer", "content": "cc_available: true"},
+            {"role": "user", "content": "Ping"},
+        ]
+    )
+
+    # Prefill text must appear in instructions.
+    assert "回答は最短で書いてください。" in kwargs["instructions"]
+    assert "cc_available: true" in kwargs["instructions"]
+    # Original system prompt must still be present.
+    assert "You are Hermes." in kwargs["instructions"]
+    # developer messages must NOT appear in the input items.
+    input_roles = [item.get("role") for item in kwargs["input"]]
+    assert "developer" not in input_roles
+    # The user message must still pass through to input.
+    assert any(item.get("role") == "user" for item in kwargs["input"])
+
+
+def test_build_api_kwargs_codex_no_prefill_instructions_unchanged(monkeypatch):
+    """Without developer-role messages, instructions must equal the system prompt exactly."""
+    agent = _build_agent(monkeypatch)
+    kwargs = agent._build_api_kwargs(
+        [
+            {"role": "system", "content": "You are Hermes."},
+            {"role": "user", "content": "Ping"},
+        ]
+    )
+
+    assert kwargs["instructions"] == "You are Hermes."
