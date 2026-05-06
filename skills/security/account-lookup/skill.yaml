@@ -1,0 +1,23 @@
+name: account-lookup
+description: |
+  Bitwarden に登録されたアカウント情報（ID・パスワード・APIキー）を検索して返す。
+  パスワード等の機密情報は一部マスクして Discord に返答する。
+  MyKNOT 内部でシークレットを使用する場合はマスクなしで取得できる。
+
+triggers:
+  - "パスワードを教えて"
+  - "のIDは？"
+  - "のパスワードは？"
+  - "APIキーを教えて"
+  - "アカウント情報"
+  - "ログイン情報"
+  - "シークレットを確認"
+  - "認証情報"
+
+steps:
+  - name: parse_request
+    description: どのサービスの何のフィールドを知りたいか解釈する
+  - name: fetch_secret
+    description: Bitwarden から get_secret() で値を取得する
+  - name: mask_and_reply
+    description: 値を一部マスクして Discord に返答する

@@ -40,6 +40,7 @@ VALID_SKILL_CONTENT = """\
 ---
 name: test-skill
 description: A test skill for unit testing.
+description_full: A test skill used in automated unit tests to verify skill creation and editing.
 ---
 
 # Test Skill
@@ -51,6 +52,7 @@ VALID_SKILL_CONTENT_2 = """\
 ---
 name: test-skill
 description: Updated description.
+description_full: Updated test skill used to verify skill editing workflows in unit tests.
 ---
 
 # Test Skill v2
@@ -138,10 +140,12 @@ class TestValidateFrontmatter:
 
     def test_missing_description_field(self):
         content = "---\nname: test\n---\n\nBody.\n"
-        assert _validate_frontmatter(content) == "Frontmatter must include 'description' field."
+        err = _validate_frontmatter(content)
+        assert err is not None
+        assert "description" in err.lower()
 
     def test_no_body_after_frontmatter(self):
-        content = "---\nname: test\ndescription: desc\n---\n"
+        content = "---\nname: test\ndescription: desc\ndescription_full: Full desc.\n---\n"
         assert _validate_frontmatter(content) == "SKILL.md must have content after the frontmatter (instructions, procedures, etc.)."
 
     def test_invalid_yaml(self):
@@ -292,6 +296,7 @@ class TestPatchSkill:
 ---
 name: test-skill
 description: A test skill.
+description_full: A test skill used to verify ambiguous match rejection.
 ---
 
 # Test
@@ -309,6 +314,7 @@ word word
 ---
 name: test-skill
 description: A test skill.
+description_full: A test skill used to verify replace_all patch behavior.
 ---
 
 # Test

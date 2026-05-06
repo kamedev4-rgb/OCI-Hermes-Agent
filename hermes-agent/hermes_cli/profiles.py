@@ -545,7 +545,62 @@ def create_profile(
     _write_profile_mem0_config(profile_dir, name, source_dir)
     _ensure_profile_mem0_database(profile_dir, name)
 
+    # スキルDBを初期化（seed_profile_skills でスキルが配置済みの場合のみ）
+    # --clone-all の場合は copytree で DB もコピー済みのためスキップ
+    db_path = profile_dir / "skill_index.db"
+    if not db_path.exists():
+        seed_profile_skill_db(profile_dir, quiet=quiet)
+        # 0件またはファイルが壊れている場合は削除（次回起動時に再シードさせる）
+        try:
+            from tools.skill_index_db import SkillIndexDB
+            if db_path.exists():
+                _db = SkillIndexDB(db_path)
+                if _db.count_skills() == 0:
+                    _db.close()
+                    db_path.unlink(missing_ok=True)
+                else:
+                    _db.close()
+        except Exception:
+            pass
+
     return profile_dir
+
+
+def seed_profile_skill_db(profile_dir: "Path", *, quiet: bool = False) -> "int | None":
+    """新プロフィールのスキルDBを初期化する（ファイルスキャン → upsert）。
+
+    seed_profile_skills() でスキルファイルが配置された後に呼ぶこと。
+    HERMES_HOME をプロフィールディレクトリに向けてサブプロセスで実行する。
+    失敗してもプロフィール作成は中断しない。
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+    project_root = Path(__file__).parent.parent.resolve()
+    try:
+        result = subprocess.run(
+            [sys.executable, "-c",
+             "import json; "
+             "from tools.skills_tool import _find_all_skills, _sync_skills_to_index; "
+             "skills = _find_all_skills(); "
+             "_sync_skills_to_index(skills); "
+             "print(json.dumps({'count': len(skills)}))"],
+            env={
+                "PATH": os.environ.get("PATH", ""),
+                "HOME": os.environ.get("HOME", ""),
+                "PYTHONPATH": os.environ.get("PYTHONPATH", ""),
+                "HERMES_HOME": str(profile_dir),
+            },
+            cwd=str(project_root),
+            capture_output=True, text=True, timeout=120,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            data = json.loads(result.stdout.strip())
+            return int(data.get("count", 0))
+        logger.debug("seed_profile_skill_db failed (rc=%d): %s", result.returncode, result.stderr[:200])
+        return None
+    except Exception as e:
+        logger.debug("seed_profile_skill_db exception: %s", e)
+        return None
 
 
 def seed_profile_skills(profile_dir: Path, quiet: bool = False) -> Optional[dict]:

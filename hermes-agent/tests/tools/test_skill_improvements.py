@@ -19,6 +19,7 @@ SKILL_CONTENT = """\
 ---
 name: test-skill
 description: A test skill for unit testing.
+description_full: A test skill used in automated unit tests to verify fuzzy patching behavior.
 ---
 
 # Test Skill
@@ -40,6 +41,7 @@ class TestFuzzyPatchSkill:
         skills_dir = tmp_path / "skills"
         skills_dir.mkdir()
         monkeypatch.setattr("tools.skill_manager_tool.SKILLS_DIR", skills_dir)
+        monkeypatch.setattr("agent.skill_utils.get_all_skills_dirs", lambda: [skills_dir])
         monkeypatch.setenv("HERMES_HOME", str(tmp_path))
         self.skills_dir = skills_dir
 
@@ -56,6 +58,7 @@ class TestFuzzyPatchSkill:
 ---
 name: ws-skill
 description: Whitespace test
+description_full: A test skill to verify whitespace-trimmed fuzzy patch matching.
 ---
 
 # Commands
@@ -76,6 +79,7 @@ description: Whitespace test
 ---
 name: indent-skill
 description: Indentation test
+description_full: A test skill to verify flexible indentation matching in fuzzy patches.
 ---
 
 # Steps
@@ -101,6 +105,7 @@ description: Indentation test
 ---
 name: dup-skill
 description: Duplicate test
+description_full: A test skill to verify that ambiguous matches are blocked without replace_all.
 ---
 
 # Steps
@@ -117,6 +122,7 @@ word word word
 ---
 name: dup-skill
 description: Duplicate test
+description_full: A test skill to verify that replace_all replaces all occurrences.
 ---
 
 # Steps

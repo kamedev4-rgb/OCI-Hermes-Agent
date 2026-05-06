@@ -80,8 +80,45 @@ import yaml
 HERMES_HOME = get_hermes_home()
 SKILLS_DIR = HERMES_HOME / "skills"
 
+
+def _sync_skill_to_db(skill_dir: Path, content: str) -> None:
+    """ファイル書き込み後にDBへ即時同期する。失敗してもファイル操作を巻き戻さない。"""
+    try:
+        from tools.skill_index_db import SkillIndexDB, get_skill_index_db_path
+        import yaml as _yaml
+
+        end_match = __import__("re").search(r'\n---\s*\n', content[3:])
+        if not end_match:
+            return
+        parsed = _yaml.safe_load(content[3:end_match.start() + 3]) or {}
+
+        db = SkillIndexDB(get_skill_index_db_path(SKILLS_DIR))
+        db.upsert_skill({
+            "skill_name": parsed.get("name") or skill_dir.name,
+            "category": skill_dir.parent.name if skill_dir.parent != SKILLS_DIR else None,
+            "description": str(parsed.get("description") or ""),
+            "description_full": str(parsed.get("description_full") or parsed.get("description") or ""),
+            "skill_dir": str(skill_dir),
+            "source": "local",
+            "enabled": True,
+            "pinned": bool(parsed.get("pinned", False)),
+        })
+    except Exception as e:
+        logger.debug("DB sync skipped after skill write (%s): %s", skill_dir.name, e)
+
+
+def _remove_skill_from_db(skill_name: str) -> None:
+    """スキル削除後にDBからレコードを削除する。失敗してもファイル操作を巻き戻さない。"""
+    try:
+        from tools.skill_index_db import SkillIndexDB, get_skill_index_db_path
+        db = SkillIndexDB(get_skill_index_db_path(SKILLS_DIR))
+        db.delete_skill(skill_name)
+    except Exception as e:
+        logger.debug("DB delete skipped for skill '%s': %s", skill_name, e)
+
 MAX_NAME_LENGTH = 64
-MAX_DESCRIPTION_LENGTH = 1024
+MAX_DESCRIPTION_LENGTH = 30  # description は注入用・30文字以内
+MAX_DESCRIPTION_FULL_LENGTH = 0  # 制限なし（0=無制限）
 
 
 def _is_local_skill(skill_path: Path) -> bool:
@@ -175,9 +212,17 @@ def _validate_frontmatter(content: str) -> Optional[str]:
     if "name" not in parsed:
         return "Frontmatter must include 'name' field."
     if "description" not in parsed:
-        return "Frontmatter must include 'description' field."
+        return "Frontmatter must include 'description' field（30文字以内・プロンプト注入用）."
     if len(str(parsed["description"])) > MAX_DESCRIPTION_LENGTH:
-        return f"Description exceeds {MAX_DESCRIPTION_LENGTH} characters."
+        return (
+            f"description は{MAX_DESCRIPTION_LENGTH}文字以内にしてください（プロンプト注入用）。"
+            f"詳細な説明は description_full フィールドに記載してください。"
+        )
+    if "description_full" not in parsed:
+        return (
+            "Frontmatter must include 'description_full' field（詳細説明・スコアリング用）。"
+            "スキルの用途・使いどころ・対象操作を日本語または英語で記載してください。"
+        )
 
     body = content[end_match.end() + 3:].strip()
     if not body:
@@ -343,6 +388,8 @@ def _create_skill(name: str, content: str, category: str = None) -> Dict[str, An
         shutil.rmtree(skill_dir, ignore_errors=True)
         return {"success": False, "error": scan_error}
 
+    _sync_skill_to_db(skill_dir, content)
+
     result = {
         "success": True,
         "message": f"Skill '{name}' created.",
@@ -386,6 +433,8 @@ def _edit_skill(name: str, content: str) -> Dict[str, Any]:
         if original_content is not None:
             _atomic_write_text(skill_md, original_content)
         return {"success": False, "error": scan_error}
+
+    _sync_skill_to_db(existing["path"], content)
 
     return {
         "success": True,
@@ -479,6 +528,9 @@ def _patch_skill(
         _atomic_write_text(target, original_content)
         return {"success": False, "error": scan_error}
 
+    if not file_path:
+        _sync_skill_to_db(skill_dir, new_content)
+
     return {
         "success": True,
         "message": f"Patched {'SKILL.md' if not file_path else file_path} in skill '{name}' ({match_count} replacement{'s' if match_count > 1 else ''}).",
@@ -495,12 +547,27 @@ def _delete_skill(name: str) -> Dict[str, Any]:
         return {"success": False, "error": f"Skill '{name}' is in an external directory and cannot be deleted."}
 
     skill_dir = existing["path"]
+
+    # frontmatter の name を取得してDB削除キーに使う（ディレクトリ名と一致しない場合があるため）
+    db_skill_name = name
+    try:
+        skill_md = skill_dir / "SKILL.md"
+        content = skill_md.read_text(encoding="utf-8")
+        end_match = __import__("re").search(r'\n---\s*\n', content[3:])
+        if end_match:
+            parsed = yaml.safe_load(content[3:end_match.start() + 3]) or {}
+            db_skill_name = str(parsed.get("name") or name)
+    except Exception:
+        pass
+
     shutil.rmtree(skill_dir)
 
     # Clean up empty category directories (don't remove SKILLS_DIR itself)
     parent = skill_dir.parent
     if parent != SKILLS_DIR and parent.exists() and not any(parent.iterdir()):
         parent.rmdir()
+
+    _remove_skill_from_db(db_skill_name)
 
     return {
         "success": True,

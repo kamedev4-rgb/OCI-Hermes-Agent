@@ -27,20 +27,23 @@ def isolate_skills(tmp_path, monkeypatch):
     skills_dir.mkdir()
     monkeypatch.setattr("tools.skill_manager_tool.SKILLS_DIR", skills_dir)
     monkeypatch.setattr("tools.skills_tool.SKILLS_DIR", skills_dir)
+    monkeypatch.setattr("agent.skill_utils.get_all_skills_dirs", lambda: [skills_dir])
     monkeypatch.setenv("HERMES_HOME", str(tmp_path))
     return skills_dir
 
 
-def _make_skill_content(body_chars: int) -> str:
-    """Generate valid SKILL.md content with a body of the given character count."""
+def _make_skill_content(total_chars: int) -> str:
+    """Generate valid SKILL.md content with a total character count close to total_chars."""
     frontmatter = (
         "---\n"
         "name: test-skill\n"
         "description: A test skill\n"
+        "description_full: A test skill used to verify content size limit enforcement.\n"
         "---\n"
     )
-    body = "# Test Skill\n\n" + ("x" * max(0, body_chars - 15))
-    return frontmatter + body
+    header = "# Test Skill\n\n"
+    body_chars = max(0, total_chars - len(frontmatter) - len(header))
+    return frontmatter + header + ("x" * body_chars)
 
 
 class TestValidateContentSize:
@@ -79,9 +82,10 @@ class TestCreateSkillSizeLimit:
 
     def test_create_at_limit(self, isolate_skills):
         # Content at exactly the limit should succeed
-        frontmatter = "---\nname: edge-skill\ndescription: Edge case\n---\n# Edge\n\n"
-        body_budget = MAX_SKILL_CONTENT_CHARS - len(frontmatter)
-        content = frontmatter + ("x" * body_budget)
+        frontmatter = "---\nname: edge-skill\ndescription: Edge case\ndescription_full: Edge case skill for size limit testing.\n---\n"
+        header = "# Edge\n\n"
+        body_budget = MAX_SKILL_CONTENT_CHARS - len(frontmatter) - len(header)
+        content = frontmatter + header + ("x" * body_budget)
         assert len(content) == MAX_SKILL_CONTENT_CHARS
         result = json.loads(skill_manage(action="create", name="edge-skill", content=content))
         assert result["success"] is True

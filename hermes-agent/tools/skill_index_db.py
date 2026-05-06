@@ -71,7 +71,9 @@ def stem_tokenize(text: str) -> list[str]:
 
 _e5_model = None
 _e5_init_tried = False
+# revision を固定してキャッシュ済みウェイトと新バージョンの混在を防ぐ（G15）
 _E5_MODEL_NAME = "intfloat/multilingual-e5-base"
+_E5_MODEL_REVISION = "d128750597153bb5987e10b1c3493a34e5a4502a"
 
 
 def _get_e5_model():
@@ -81,8 +83,8 @@ def _get_e5_model():
     _e5_init_tried = True
     try:
         from sentence_transformers import SentenceTransformer
-        _e5_model = SentenceTransformer(_E5_MODEL_NAME)
-        logger.debug("multilingual-e5-base loaded")
+        _e5_model = SentenceTransformer(_E5_MODEL_NAME, revision=_E5_MODEL_REVISION)
+        logger.debug("multilingual-e5-base loaded (revision=%s)", _E5_MODEL_REVISION[:8])
     except Exception as e:
         logger.debug("sentence-transformers unavailable: %s", e)
     return _e5_model
@@ -514,6 +516,44 @@ class SkillIndexDB:
             logger.debug("delete_skills_not_in: %d zombie row(s) deleted", count)
         return count
 
+    def count_skills(self) -> int:
+        """登録スキル数を返す（空DBチェック用）。"""
+        return int(self._conn.execute("SELECT COUNT(*) FROM skills").fetchone()[0])
+
+    def has_all_skills(self, entries: "list[dict]") -> bool:
+        """entries の全件が DB に存在し、description_full と vector_model が一致するかを確認。
+
+        count_skills() の代わりにスキップ判断に使う。
+        - vector=NULL のゴースト行を誤判定しない（F4対処）
+        - description_full の変化を検知してupsertをトリガーする（F2対処）
+        """
+        if not entries:
+            return False
+        names = [str(e.get("skill_name") or "").strip() for e in entries if e.get("skill_name")]
+        if not names:
+            return False
+        placeholders = ",".join("?" for _ in names)
+        rows = self._conn.execute(
+            f"SELECT skill_name, description_full, vector_model FROM skills "
+            f"WHERE skill_name IN ({placeholders})",
+            names,
+        ).fetchall()
+        if len(rows) != len(names):
+            return False
+        db_map = {row["skill_name"]: row for row in rows}
+        for entry in entries:
+            name = str(entry.get("skill_name") or "").strip()
+            db_row = db_map.get(name)
+            if db_row is None:
+                return False
+            if db_row["vector_model"] is None:
+                return False
+            db_desc = db_row["description_full"] or ""
+            entry_desc = str(entry.get("description_full") or entry.get("description") or "").strip()
+            if db_desc != entry_desc:
+                return False
+        return True
+
     def mark_missing_skills(self, seen_names: set[str]) -> None:
         if not seen_names:
             return
@@ -548,8 +588,10 @@ class SkillIndexDB:
         trigger: "str | None" = None,  # 旧APIとの互換性のため受け入れるが無視
     ) -> None:
         when = float(used_at or time.time())
+        # DB未登録スキルは空ベクトルで汚染しない（G16）
         if self.get_skill(skill_name) is None:
-            self.upsert_skill({"skill_name": skill_name})
+            logger.debug("record_usage: unknown skill %r — skipping upsert to avoid empty-vector pollution", skill_name)
+            return
         self._conn.execute(
             "INSERT INTO skill_usage_events(skill_name, used_at, session_id, platform) VALUES (?, ?, ?, ?)",
             (str(skill_name), when, _normalize_text(session_id), _normalize_text(platform)),

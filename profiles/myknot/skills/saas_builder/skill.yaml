@@ -1,0 +1,23 @@
+name: saas_builder
+description: |
+  kame-dev との対話を通じてWebアプリを開発し、OCI VM 上の Docker コンテナとして起動する。
+  アプリのコードを生成して ~/saas/<name>/ に配置し、コンテナを起動してアクセス URL を通知する。
+
+triggers:
+  - "アプリを作って"
+  - "ツールを作って"
+  - "作成して"
+  - "デプロイして"
+  - "saas"
+
+steps:
+  - name: requirements_gathering
+    description: 要件ヒアリング（何を作るか・機能・対象ユーザー）
+  - name: tech_selection
+    description: 技術スタック選定（Python/FastAPI・Node/Express など）
+  - name: code_generation
+    description: Codex でコードを生成して ~/saas/<name>/ に配置
+  - name: docker_deploy
+    description: docker-compose.yml を生成してコンテナ起動
+  - name: notify
+    description: 起動結果と URL を Discord で報告
