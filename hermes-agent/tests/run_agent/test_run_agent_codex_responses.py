@@ -1313,7 +1313,39 @@ def test_preflight_codex_input_deduplicates_reasoning_ids(monkeypatch):
 
 
 def test_build_api_kwargs_codex_prefill_appended_to_instructions(monkeypatch):
-    """developer-role prefill messages must be appended to instructions, not dropped."""
+    """system/developer-role prefill messages must be appended to instructions, not dropped.
+
+    prefill_messages are injected with role 'system' (the raw value from the JSON file).
+    The Responses API ignores both 'system' and 'developer' in input items, so we
+    must extract them and append to instructions before calling
+    _chat_messages_to_responses_input.
+    """
+    agent = _build_agent(monkeypatch)
+    # Test system-role prefill (real-world case: prefill-short-response.json)
+    kwargs = agent._build_api_kwargs(
+        [
+            {"role": "system", "content": "You are Hermes."},
+            {"role": "system", "content": "回答は最短で書いてください。"},
+            {"role": "system", "content": "cc_available: true"},
+            {"role": "user", "content": "Ping"},
+        ]
+    )
+
+    # Prefill text must appear in instructions.
+    assert "回答は最短で書いてください。" in kwargs["instructions"]
+    assert "cc_available: true" in kwargs["instructions"]
+    # Original system prompt must still be present.
+    assert "You are Hermes." in kwargs["instructions"]
+    # system/developer messages must NOT appear in the input items.
+    input_roles = [item.get("role") for item in kwargs["input"]]
+    assert "system" not in input_roles
+    assert "developer" not in input_roles
+    # The user message must still pass through to input.
+    assert any(item.get("role") == "user" for item in kwargs["input"])
+
+
+def test_build_api_kwargs_codex_prefill_developer_role_appended(monkeypatch):
+    """developer-role prefill (future: after _pfm_role upgrade) also appended."""
     agent = _build_agent(monkeypatch)
     kwargs = agent._build_api_kwargs(
         [
@@ -1324,15 +1356,10 @@ def test_build_api_kwargs_codex_prefill_appended_to_instructions(monkeypatch):
         ]
     )
 
-    # Prefill text must appear in instructions.
     assert "回答は最短で書いてください。" in kwargs["instructions"]
     assert "cc_available: true" in kwargs["instructions"]
-    # Original system prompt must still be present.
-    assert "You are Hermes." in kwargs["instructions"]
-    # developer messages must NOT appear in the input items.
     input_roles = [item.get("role") for item in kwargs["input"]]
     assert "developer" not in input_roles
-    # The user message must still pass through to input.
     assert any(item.get("role") == "user" for item in kwargs["input"])
 
 

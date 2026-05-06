@@ -6930,13 +6930,14 @@ class AIAgent:
             if not instructions:
                 instructions = DEFAULT_AGENT_IDENTITY
 
-            # Responses API ignores "developer" role in input items — extract
-            # prefill messages (developer role) and append them to instructions
-            # so they reach the model as part of the system-level guidance.
+            # Responses API ignores "system" and "developer" role messages in
+            # input items — extract prefill messages (injected after the first
+            # system message as additional system/developer entries) and append
+            # them to instructions so they reach the model as system-level guidance.
             _prefill_parts = []
             _filtered_payload = []
             for _m in payload_messages:
-                if isinstance(_m, dict) and _m.get("role") == "developer":
+                if isinstance(_m, dict) and _m.get("role") in {"system", "developer"}:
                     _content = str(_m.get("content") or "").strip()
                     if _content:
                         _prefill_parts.append(_content)
