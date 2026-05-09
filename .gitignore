@@ -106,3 +106,6 @@ pairing/
 **/pairing/
 BOOT.md
 **/BOOT.md
+
+cc_session.json
+**/cc_session.json

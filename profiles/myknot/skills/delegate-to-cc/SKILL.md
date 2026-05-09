@@ -1,6 +1,7 @@
 ---
 name: delegate-to-cc
-description: 意図・背景・暗黙知の整理が必要なタスクをClaude Codeに委譲する。cc_available: trueのときのみ実行可能。
+description: "Claude Code委譲"
+description_full: "意図・背景・暗黙知の整理が必要なタスクをClaude Codeに委譲する。cc_available: trueのときのみ実行可能。"
 version: 1.0.0
 triggers:
   - Claude Codeに委譲
@@ -45,6 +46,8 @@ print('available' if available else 'blocked')
 
 blocked の場合はkame-devに「現在Claude Codeへの委譲ができません（使用量制限中）。自分で処理するか、後ほど再試行してください。」と伝えて終了する。
 
+注意: `cc_status.json` が available でも、Claude Code が未ログインだと `cc-session.py start/continue` が `Not logged in · Please run /login` を返すことがある。この場合は委譲を諦め、自分で処理する。ユーザーには必要なら「Claude Codeは未ログインで委譲できませんでした」とだけ短く伝える。
+
 ### Step 2: セッション確認
 
 ```bash
@@ -67,6 +70,8 @@ python3 /home/ubuntu/.hermes/scripts/cc-session.py start "<topic>" "<prompt>"
 ```bash
 python3 /home/ubuntu/.hermes/scripts/cc-session.py continue "<prompt>"
 ```
+
+`Not logged in · Please run /login` が返った場合は、委譲できていない。以後の作業を自分で続行するか、ユーザーに後で再試行可能な旨を伝える。
 
 ### Step 4: 完了処理
 
