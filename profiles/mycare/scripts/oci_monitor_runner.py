@@ -13,6 +13,8 @@ import urllib.request
 DISCORD_API_BASE = "https://discord.com/api/v10"
 PROFILE = "mycare"
 DETECTOR = "/home/ubuntu/.hermes/profiles/mycare/scripts/oci_monitor.py"
+NVIDIA_API_BASE = "https://integrate.api.nvidia.com/v1"
+NVIDIA_MODEL = "meta/llama-3.3-70b-instruct"
 
 
 def utc_now() -> str:
@@ -49,34 +51,47 @@ def send_discord_message(message: str) -> tuple[bool, str]:
 
 
 def summarize_with_llm(payload: dict) -> tuple[bool, str]:
-    prompt = f'''You are summarizing an OCI monitoring alert for Discord.
+    api_key = os.getenv("NVIDIA_API_KEY", "").strip() or os.getenv("OPENAI_API_KEY", "").strip()
+    if not api_key:
+        return False, "Missing NVIDIA_API_KEY"
 
-Current time: {utc_now()}
-Monitoring payload:
-```json
-{json.dumps(payload, ensure_ascii=False)}
-```
+    prompt = f"""OCI監視アラートを日本語でDiscord用に簡潔にまとめてください。
 
-Task:
-- Write a concise Japanese alert message for Discord.
-- Include disk and memory percentages if present.
-- Include each alert item clearly.
-- Do not use tools.
-- Output only the final message text.
-'''
-    result = subprocess.run(
-        ["hermes", "--profile", PROFILE, "chat", "-Q", "-q", prompt],
-        capture_output=True,
-        text=True,
-        timeout=180,
+現在時刻: {utc_now()}
+監視データ:
+- ディスク使用率: {payload.get('disk_pct')}%
+- メモリ使用率: {payload.get('mem_pct')}%
+- アラート数: {payload.get('alert_count')}
+- アラート内容: {', '.join(payload.get('alerts', []))}
+
+出力形式: Discordに送信する日本語テキストのみ。絵文字を使って見やすくしてください。"""
+
+    body = json.dumps({
+        "model": NVIDIA_MODEL,
+        "messages": [{"role": "user", "content": prompt}],
+        "max_tokens": 300,
+        "temperature": 0.3,
+    }).encode("utf-8")
+
+    req = urllib.request.Request(
+        f"{NVIDIA_API_BASE}/chat/completions",
+        data=body,
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
     )
-    if result.returncode != 0:
-        stderr = (result.stderr or result.stdout).strip()
-        return False, f"Hermes summary failed: {stderr[:500]}"
-    text = (result.stdout or "").strip()
-    if not text:
-        return False, "Hermes summary returned empty output"
-    return True, text
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            result = json.loads(resp.read().decode("utf-8"))
+            text = result["choices"][0]["message"]["content"].strip()
+            return True, text
+    except urllib.error.HTTPError as exc:
+        body_err = exc.read().decode("utf-8", errors="replace")[:300]
+        return False, f"NVIDIA API HTTPError {exc.code}: {body_err}"
+    except Exception as exc:
+        return False, f"NVIDIA API failed: {exc}"
 
 
 if __name__ == "__main__":
@@ -112,8 +127,8 @@ if __name__ == "__main__":
     if not ok:
         fallback = (
             f"⚠️ MyCARE OCI alert ({utc_now()})\n"
-            f"- disk_pct: {payload.get('disk_pct')}\n"
-            f"- mem_pct: {payload.get('mem_pct')}\n"
+            f"- disk_pct: {payload.get('disk_pct')}%\n"
+            f"- mem_pct: {payload.get('mem_pct')}%\n"
             + "\n".join(f"- {item}" for item in payload.get("alerts", []))
             + f"\n- summary_error: {summary}"
         )

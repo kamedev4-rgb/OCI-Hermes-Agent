@@ -1,7 +1,7 @@
 model:
-  provider: openai-codex
-  default: gpt-5.5
-  base_url: https://chatgpt.com/backend-api/codex
+  provider: nvidia
+  default: meta/llama-3.3-70b-instruct
+  base_url: https://integrate.api.nvidia.com/v1
 providers: {}
 fallback_providers: []
 credential_pool_strategies: {}

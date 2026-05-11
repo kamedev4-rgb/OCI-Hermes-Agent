@@ -95,6 +95,12 @@ export BITWARDENCLI_APPDATA_DIR="/home/ubuntu/.config/Bitwarden CLI"
 
 Never print real secrets. To verify unlock without exposing data, call `get_secret()` for a deliberately nonexistent item. Success looks like `Not found` after unlock, not `not logged in`.
 
+If a recently moved or shared item is unexpectedly missing, run `bw sync` with the same `BITWARDENCLI_APPDATA_DIR` before concluding it is absent. This mattered for the `Google_ID` item after a folder move.
+
+```bash
+BITWARDENCLI_APPDATA_DIR="/home/ubuntu/.config/Bitwarden CLI" bw sync
+```
+
 ```bash
 BITWARDENCLI_APPDATA_DIR="/home/ubuntu/.config/Bitwarden CLI" python - <<'PY'
 import sys

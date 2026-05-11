@@ -106,10 +106,11 @@ Confirmed decisions:
 
 - All PDFs should try NotebookLM first.
 - Non-PDF sources should also try NotebookLM first when source ingestion is technically possible.
-- NotebookLM authentication should use Bitwarden-managed secrets.
+- NotebookLM authentication should use Bitwarden-managed secrets; in this environment the confirmed Bitwarden item is named `Google_ID` (not `Google`). Run `bw sync` before concluding it is missing, because the item appeared after sync/folder movement.
 - Temporary NotebookLM notebooks must always be deleted after processing, both on success and failure.
-- RAG should store NotebookLM output only, not the full extracted PDF/text by default.
-- UI should expose only a small processing-method metadata label, not raw unofficial API details.
+- NotebookLM failures should retry 2 times before final failure/fallback handling.
+- RAG should store NotebookLM output only, not the full extracted PDF/text by default. Gemini fallback summaries may be saved but should be marked as not RAG-indexed.
+- UI should expose only a small processing-method metadata label, not raw unofficial API details. Add an explicit searchable metadata/status field for items without RAG indexing rather than using normal user tags.
 - Notify the user only after final failure; NotebookLM failure followed by successful fallback should not notify by default.
 
 Use NotebookLM/notebooklm-py for:
@@ -286,6 +287,26 @@ UI iteration notes:
 - RAG stores NotebookLM output only by default. Gemini fallback summaries may be saved as summaries but should not be indexed into RAG unless this policy changes.
 - Markdown rendering, image support, and PDF support have been implemented. PDF implementation uses `source_type=pdf`, `POST /api/clippings/pdf` multipart upload, existing `attachments` storage under `/app/storage`, `pypdf==5.1.0` text extraction, async `summarize` worker handling via `save_pdf_summary`, Gemini Japanese summarization/tagging when extractable text exists, `manual_required` fallback for scanned/unextractable PDFs, RAG chunks for summary plus extracted text, list cards with `PDF` badge and filename/`PDFコンテンツ` source row, and detail-screen PDF link. Keep list cards thumbnail-free for PDF/image: list = scan/select, detail = view/open.
 - X support is not currently implemented beyond the DB enum value. API `SourceType`, UI, and Worker handling do not support `x` yet. Initial recommended X approach is stable manual-assisted capture: `source_type=x`, X post URL in `sources.url`, pasted tweet/thread text as the summarization input, optional title/tags. Avoid relying on simple fetch/scraping first because X login/JS/rate limits make extraction unreliable; official API or external fetchers can be evaluated later.
+- NotebookLM support has been implemented in `/home/ubuntu/saas/clipping-note` as an isolated adapter, not a core hard dependency path. Key files/changes:
+  - `apps/api/app/notebooklm_adapter.py` wraps `notebooklm-py==0.4.0` and supports mock mode.
+  - `apps/api/requirements.txt` includes `notebooklm-py==0.4.0`; after changing it, run `docker compose build api worker` so the running containers actually have the package.
+  - `.env.example` documents `NOTEBOOKLM_ENABLED`, `NOTEBOOKLM_COOKIE`, `NOTEBOOKLM_COOKIES_PATH`, and `NOTEBOOKLM_MOCK`.
+  - `GET /api/settings/notebooklm` reports whether NotebookLM is configured; UI shows only simple Japanese status, not unofficial-API internals.
+  - DB now has `clippings.processing_provider`, `clippings.rag_status`, and `notebooklm_sessions` for temporary-notebook lifecycle/cleanup state.
+  - `job_type` includes `notebooklm_cleanup`; worker cleanup should retry and mark `notebooklm_sessions.cleanup_status`.
+  - `rag_status` values currently used include `indexed`, `not_indexed`, `notebooklm_failed`, and `fallback_summary_only`.
+  - `summary_provider` includes `notebooklm`; `save_result_summary()` indexes RAG chunks only when provider is `notebooklm`.
+  - For real use, provide a NotebookLM Playwright storage/cookie path via `NOTEBOOKLM_COOKIES_PATH` and set `NOTEBOOKLM_ENABLED=true`. Use `NOTEBOOKLM_MOCK=true` only for local adapter-path testing.
+- NotebookLM implementation notes:
+  - Use `NotebookLMClient.from_storage(path=NOTEBOOKLM_COOKIES_PATH)`.
+  - The user explicitly expects NotebookLM-direct ingestion before local fetching. For `url`, `github`, and `youtube` fetch jobs, first call the NotebookLM adapter with the original URL (`client.sources.add_url`) and only fall back to local `fetch_url()`/README fetch if NotebookLM is unavailable or fails. Do not fetch locally first just to provide text to NotebookLM; that reintroduces 403/bot-block issues and violates the confirmed design.
+  - Create a temporary notebook, add file/URL/text source with `wait=True`, ask a Japanese summary prompt, parse the answer into `summary_short`/`summary_long`/`key_points`, and return the real `external_notebook_id`.
+  - Cleanup should be consistent: either delete inside the adapter and do not enqueue cleanup, or preferably store the real `external_notebook_id` in `notebooklm_sessions` and let `notebooklm_cleanup` delete it. Do not store fake `temp-{clipping_id}` IDs for real sessions, because cleanup cannot delete the actual notebook.
+  - `notebooklm-py` supports `client.sources.add_url`, `add_text`, and `add_file`; YouTube URLs are handled through `add_url` by the library. Include `github` in the URL-direct set if the current policy is direct NotebookLM URL ingestion; only use README fetch as fallback or if direct GitHub URL ingestion proves unreliable.
+  - For CSV, upload via `POST /api/clippings/csv`, store as an attachment, and try NotebookLM `add_file` before any bounded text-preview fallback.
+  - For PDFs, store `page_count`, `extracted_chars`, `long_document`, and `recommended_provider` in `sources.metadata`; when NotebookLM is unavailable and the PDF is long or extraction fails, prefer `manual_required` with `rag_status='notebooklm_failed'` rather than spending Gemini quota.
+  - Real enablement requires `NOTEBOOKLM_ENABLED=true` plus a valid NotebookLM/Google Playwright storage state file path in `NOTEBOOKLM_COOKIES_PATH`. The confirmed Bitwarden item for the Google account is `Google_ID`; run `bw sync` if it is not visible. Bitwarden login/password alone did not produce a usable NotebookLM `storage_state.json` in headless Playwright: Google redirected to `accounts.google.com/.../signin/rejected` before password entry for both Chromium and Firefox. Do not claim NotebookLM is active unless `/api/settings/notebooklm` returns `configured:true` and a real adapter call succeeds.
+  - If a URL unexpectedly fails with 403 in local fallback, verify from both host and worker container with default UA and browser UA. `ClippingNote/0.1` was blocked by Cloudflare for `hakari-corp.com`, while browser-like headers returned 200; fallback fetch should use browser-like headers, but this is secondary to NotebookLM-direct ingestion.
 
 Verification commands used:
 
