@@ -14,6 +14,9 @@ metadata:
       - GitHubのアクセストークン
       - GitHub接続設定
     related_skills: [github-pr-workflow, github-code-review, github-issues, github-repo-management]
+    required_environment_variables:
+      - GH_TOKEN
+      - GITHUB_TOKEN
 ---
 
 # GitHub Authentication Setup

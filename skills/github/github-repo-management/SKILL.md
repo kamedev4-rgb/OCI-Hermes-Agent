@@ -23,6 +23,9 @@ metadata:
       - ブランチ保護
       - GitHub シークレット設定
     related_skills: [github-auth, github-pr-workflow, github-issues]
+    required_environment_variables:
+      - GH_TOKEN
+      - GITHUB_TOKEN
 ---
 
 # GitHub Repository Management

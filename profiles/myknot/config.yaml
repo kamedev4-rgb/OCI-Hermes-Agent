@@ -59,7 +59,7 @@ terminal:
   modal_mode: auto
   cwd: .
   timeout: 180
-  env_passthrough: []
+  env_passthrough: [GH_TOKEN, GITHUB_TOKEN]
   docker_image: nikolaik/python-nodejs:python3.11-nodejs20
   docker_forward_env: []
   docker_env: {}
