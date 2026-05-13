@@ -101,6 +101,8 @@ kame-devが「セッションを切って」と言った場合、または新し
 python3 /home/ubuntu/.hermes/scripts/cc-session.py close
 ```
 
-### Step 5: 結果をkame-devに報告
+### Step 5: 結果を確認してkame-devに報告
 
-Claude Codeからの返答をそのままkame-devに伝える。
+Claude Codeの返答はそのまま転送しない。MyKNOTが内容を確認し、採用する点・採用しない点・次の判断を整理してからkame-devに報告する。
+
+理由: Claude Codeは思考補助であり、採否判断・実装指揮・最終責任はMyKNOTが保持する。
