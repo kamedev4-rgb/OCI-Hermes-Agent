@@ -16,6 +16,13 @@ HERMES_HOME = Path(os.environ.get("HERMES_HOME", Path.home() / ".hermes"))
 SESSION_FILE = HERMES_HOME / "cc_session.json"
 TIMEOUT_DAYS = 2
 
+# --resume 失敗時に返る既知の文字列
+_RESUME_FAILURE_PHRASES = [
+    "No conversation found",
+    "Not logged in",
+    "Please run /login",
+]
+
 
 def load_session() -> dict | None:
     if not SESSION_FILE.exists():
@@ -34,6 +41,14 @@ def delete_session():
         SESSION_FILE.unlink()
 
 
+def _session_id_exists(session_id: str) -> bool:
+    """~/.claude/projects/ 以下に対応する .jsonl が存在するか確認する。"""
+    if session_id == "unknown":
+        return False
+    projects_dir = Path.home() / ".claude" / "projects"
+    return bool(list(projects_dir.rglob(f"{session_id}.jsonl")))
+
+
 def check():
     """セッション状態を確認して stdout に出力する。"""
     session = load_session()
@@ -47,8 +62,25 @@ def check():
     if now > timeout_at:
         delete_session()
         print("timeout")
-    else:
-        print(f"continue {session['session_id']}")
+        return
+
+    # セッションファイルが実際に存在するか確認
+    if not _session_id_exists(session["session_id"]):
+        delete_session()
+        print("new")
+        return
+
+    print(f"continue {session['session_id']}")
+
+
+def _run_claude_new(prompt: str) -> subprocess.CompletedProcess:
+    """新規セッションで claude を実行する。"""
+    return subprocess.run(
+        ["claude", "-p", prompt, "--output-format", "text"],
+        capture_output=True,
+        text=True,
+        timeout=300,
+    )
 
 
 def start(topic: str, prompt: str):
@@ -56,22 +88,15 @@ def start(topic: str, prompt: str):
     now = datetime.now(timezone.utc)
     timeout_at = now + timedelta(days=TIMEOUT_DAYS)
 
-    result = subprocess.run(
-        ["claude", "-p", prompt, "--output-format", "text"],
-        capture_output=True,
-        text=True,
-        timeout=300
-    )
+    result = _run_claude_new(prompt)
 
-    # セッションIDをClaude Codeの出力から取得できないため、
-    # claude --resume 用に最新セッションIDをsettingsから取得する
     session_id = _get_latest_session_id()
 
     session_data = {
         "session_id": session_id,
         "topic": topic,
         "created_at": now.isoformat(),
-        "timeout_at": timeout_at.isoformat()
+        "timeout_at": timeout_at.isoformat(),
     }
     save_session(session_data)
 
@@ -90,15 +115,38 @@ def continue_session(prompt: str):
         ["claude", "--resume", session["session_id"], "-p", prompt, "--output-format", "text"],
         capture_output=True,
         text=True,
-        timeout=300
+        timeout=300,
     )
 
-    # timeout_atを更新（最終アクティビティから2日）
+    output = result.stdout.strip()
+
+    # --resume 失敗を検出: 空出力 or 既知エラー文字列
+    resume_failed = not output or any(phrase in output for phrase in _RESUME_FAILURE_PHRASES)
+    if resume_failed:
+        # 壊れたセッションを削除して新規起動にフォールバック
+        topic = session.get("topic", "不明")
+        delete_session()
+        fallback_result = _run_claude_new(prompt)
+        fallback_output = fallback_result.stdout.strip()
+
+        # 新セッションとして保存
+        now = datetime.now(timezone.utc)
+        new_session_id = _get_latest_session_id()
+        save_session({
+            "session_id": new_session_id,
+            "topic": topic,
+            "created_at": now.isoformat(),
+            "timeout_at": (now + timedelta(days=TIMEOUT_DAYS)).isoformat(),
+        })
+
+        print(fallback_output)
+        return
+
+    # 正常継続: timeout_at を更新
     now = datetime.now(timezone.utc)
     session["timeout_at"] = (now + timedelta(days=TIMEOUT_DAYS)).isoformat()
     save_session(session)
 
-    output = result.stdout.strip()
     print(output)
 
 
@@ -117,7 +165,11 @@ def _get_latest_session_id() -> str:
     """~/.claude/projects から最新セッションIDを取得する。"""
     try:
         projects_dir = Path.home() / ".claude" / "projects"
-        jsonl_files = sorted(projects_dir.rglob("*.jsonl"), key=lambda p: p.stat().st_mtime, reverse=True)
+        jsonl_files = sorted(
+            projects_dir.rglob("*.jsonl"),
+            key=lambda p: p.stat().st_mtime,
+            reverse=True,
+        )
         if jsonl_files:
             return jsonl_files[0].stem
     except Exception:
