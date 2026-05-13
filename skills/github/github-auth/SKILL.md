@@ -1,6 +1,6 @@
 ---
 name: github-auth
-description: Set up GitHub authentication for the agent using git (universally available) or the gh CLI. Covers HTTPS tokens, SSH keys, credential helpers, and gh auth — with a detection flow to pick the right method automatically.
+description: GitHub認証の確認・設定。gh CLIインストール済み・GITHUB_TOKENは ~/.hermes/.env に設定済み。通常はこのスキル不要。トークン更新・再認証時に使う。
 version: 1.1.0
 author: Hermes Agent
 license: MIT
@@ -18,29 +18,37 @@ metadata:
 
 # GitHub Authentication Setup
 
-This skill sets up authentication so the agent can work with GitHub repositories, PRs, issues, and CI. It covers two paths:
+## 現在の構成（OCI VM / MyKNOT）
 
-- **`git` (always available)** — uses HTTPS personal access tokens or SSH keys
-- **`gh` CLI (if installed)** — richer GitHub API access with a simpler auth flow
+- `gh` CLI v2.92.0 インストール済み（ARM64）
+- `GITHUB_TOKEN` は `~/.hermes/.env` に設定済み
+- `gh` は `GITHUB_TOKEN` 環境変数があれば `gh auth login` 不要で動作する
+- MyKNOT gateway 起動時に `EnvironmentFile=~/.hermes/.env` 経由で自動注入される
 
-## Detection Flow
-
-When a user asks you to work with GitHub, run this check first:
+### 認証状態の確認
 
 ```bash
-# Check what's available
-git --version
-gh --version 2>/dev/null || echo "gh not installed"
+# GITHUB_TOKEN を環境に読み込む
+export GITHUB_TOKEN=$(grep "^GITHUB_TOKEN=" ~/.hermes/.env | head -1 | cut -d= -f2 | tr -d '\n\r')
 
-# Check if already authenticated
-gh auth status 2>/dev/null || echo "gh not authenticated"
-git config --global credential.helper 2>/dev/null || echo "no git credential helper"
+# 認証確認
+gh api user --jq '.login'
 ```
 
-**Decision tree:**
-1. If `gh auth status` shows authenticated → you're good, use `gh` for everything
-2. If `gh` is installed but not authenticated → use "gh auth" method below
-3. If `gh` is not installed → use "git-only" method below (no sudo needed)
+### トークン更新が必要な場合
+
+`kamedev4-rgb` アカウントで https://github.com/settings/tokens から新しいPATを発行し、
+`~/.hermes/.env` の `GITHUB_TOKEN=` 行を更新して MyKNOT gateway を再起動する：
+
+```bash
+# .env のトークンを更新（新しいトークンに置き換える）
+sed -i "s|^GITHUB_TOKEN=.*|GITHUB_TOKEN=ghp_新しいトークン|" ~/.hermes/.env
+systemctl --user restart hermes-gateway-myknot
+```
+
+---
+
+## 旧来の設定方法（参考）
 
 ---
 

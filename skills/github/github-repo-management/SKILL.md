@@ -27,34 +27,25 @@ metadata:
 
 # GitHub Repository Management
 
-Create, clone, fork, configure, and manage GitHub repositories. Each section shows `gh` first, then the `git` + `curl` fallback.
+Create, clone, fork, configure, and manage GitHub repositories. Uses `gh` CLI (installed) with `GITHUB_TOKEN` env var. Falls back to `git` + `curl` if needed.
 
 ## Prerequisites
 
-- Authenticated with GitHub (see `github-auth` skill)
+- `gh` CLI installed (`gh --version` で確認)
+- `GITHUB_TOKEN` が `~/.hermes/.env` に設定済み（MyKNOT gateway 経由で環境変数として渡る）
 
 ### Setup
 
 ```bash
-if command -v gh &>/dev/null && gh auth status &>/dev/null; then
-  AUTH="gh"
-else
-  AUTH="git"
-  if [ -z "$GITHUB_TOKEN" ]; then
-    if [ -f ~/.hermes/.env ] && grep -q "^GITHUB_TOKEN=" ~/.hermes/.env; then
-      GITHUB_TOKEN=$(grep "^GITHUB_TOKEN=" ~/.hermes/.env | head -1 | cut -d= -f2 | tr -d '\n\r')
-    elif grep -q "github.com" ~/.git-credentials 2>/dev/null; then
-      GITHUB_TOKEN=$(grep "github.com" ~/.git-credentials 2>/dev/null | head -1 | sed 's|https://[^:]*:\([^@]*\)@.*|\1|')
-    fi
-  fi
+# GITHUB_TOKEN を .env から読み込む（gateway 経由で渡っていない場合のみ必要）
+if [ -z "$GITHUB_TOKEN" ] && [ -f ~/.hermes/.env ]; then
+  export GITHUB_TOKEN=$(grep "^GITHUB_TOKEN=" ~/.hermes/.env | head -1 | cut -d= -f2 | tr -d '\n\r')
 fi
 
-# Get your GitHub username (needed for several operations)
-if [ "$AUTH" = "gh" ]; then
-  GH_USER=$(gh api user --jq '.login')
-else
-  GH_USER=$(curl -s -H "Authorization: token $GITHUB_TOKEN" https://api.github.com/user | python3 -c "import sys,json; print(json.load(sys.stdin)['login'])")
-fi
+# gh は GITHUB_TOKEN 環境変数があれば auth login 不要で動作する
+# ユーザー名を取得
+GH_USER=$(gh api user --jq '.login')
+echo "Authenticated as: $GH_USER"
 ```
 
 If you're inside a repo already:
