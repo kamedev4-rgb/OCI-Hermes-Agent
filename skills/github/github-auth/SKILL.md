@@ -7,6 +7,12 @@ license: MIT
 metadata:
   hermes:
     tags: [GitHub, Authentication, Git, gh-cli, SSH, Setup]
+    triggers:
+      - GitHub認証
+      - GitHubにログイン
+      - GitHub token設定
+      - GitHubのアクセストークン
+      - GitHub接続設定
     related_skills: [github-pr-workflow, github-code-review, github-issues, github-repo-management]
 ---
 

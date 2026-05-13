@@ -7,6 +7,21 @@ license: MIT
 metadata:
   hermes:
     tags: [GitHub, Repositories, Git, Releases, Secrets, Configuration]
+    triggers:
+      - リポジトリを作って
+      - GitHubにリポジトリ作成
+      - レポジトリ作って
+      - リポジトリ作りたい
+      - GitHub repo作って
+      - 新しいリポジトリ
+      - リポジトリをクローン
+      - clone して
+      - フォークして
+      - GitHub プッシュ
+      - リポジトリ管理
+      - GitHub リリース
+      - ブランチ保護
+      - GitHub シークレット設定
     related_skills: [github-auth, github-pr-workflow, github-issues]
 ---
 
