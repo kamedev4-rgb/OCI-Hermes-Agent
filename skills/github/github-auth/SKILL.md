@@ -21,15 +21,15 @@ metadata:
 ## 現在の構成（OCI VM / MyKNOT）
 
 - `gh` CLI v2.92.0 インストール済み（ARM64）
-- `GITHUB_TOKEN` は `~/.hermes/.env` に設定済み
-- `gh` は `GITHUB_TOKEN` 環境変数があれば `gh auth login` 不要で動作する
+- `GH_TOKEN` および `GITHUB_TOKEN` は `~/.hermes/.env` に設定済み
+- `gh` は `GH_TOKEN` 環境変数があれば `gh auth login` 不要で動作する（`GITHUB_TOKEN` は gh CLI では認識されない）
 - MyKNOT gateway 起動時に `EnvironmentFile=~/.hermes/.env` 経由で自動注入される
 
 ### 認証状態の確認
 
 ```bash
-# GITHUB_TOKEN を環境に読み込む
-export GITHUB_TOKEN=$(grep "^GITHUB_TOKEN=" ~/.hermes/.env | head -1 | cut -d= -f2 | tr -d '\n\r')
+# GH_TOKEN を環境に読み込む（gateway 経由で渡っていない場合のみ）
+export GH_TOKEN=$(grep "^GH_TOKEN=" ~/.hermes/.env | head -1 | cut -d= -f2 | tr -d '\n\r')
 
 # 認証確認
 gh api user --jq '.login'
@@ -41,8 +41,10 @@ gh api user --jq '.login'
 `~/.hermes/.env` の `GITHUB_TOKEN=` 行を更新して MyKNOT gateway を再起動する：
 
 ```bash
-# .env のトークンを更新（新しいトークンに置き換える）
-sed -i "s|^GITHUB_TOKEN=.*|GITHUB_TOKEN=ghp_新しいトークン|" ~/.hermes/.env
+# .env のトークンを更新（GITHUB_TOKEN と GH_TOKEN の両方を更新する）
+NEW_TOKEN="ghp_新しいトークン"
+sed -i "s|^GITHUB_TOKEN=.*|GITHUB_TOKEN=$NEW_TOKEN|" ~/.hermes/.env
+sed -i "s|^GH_TOKEN=.*|GH_TOKEN=$NEW_TOKEN|" ~/.hermes/.env
 systemctl --user restart hermes-gateway-myknot
 ```
 
