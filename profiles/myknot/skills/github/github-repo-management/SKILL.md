@@ -1,13 +1,36 @@
 ---
 name: github-repo-management
-description: Clone, create, fork, configure, and manage GitHub repositories. Manage remotes, secrets, releases, and workflows. Works with gh CLI or falls back to git + GitHub REST API via curl.
-version: 1.1.0
+description: GitHubリポジトリ管理
+description_full: GitHubリポジトリの作成・clone・fork・remote設定・push・公開/非公開設定・リリース・Secrets・workflow管理。既存ローカルプロジェクトを新規GitHub repoとして作成してpushする依頼にも使う。Use for Japanese requests such as GitHubにリポジトリ作ってpush, githubに上げて, repo作ってpush, and 既存ローカルプロジェクトをGitHubへpush.
+version: 1.2.0
 author: Hermes Agent
 license: MIT
 metadata:
   hermes:
-    tags: [GitHub, Repositories, Git, Releases, Secrets, Configuration]
+    tags: [GitHub, Repositories, Git, Releases, Secrets, Configuration, push, repo-create, local-project, repository-publish, リポジトリ, プッシュ, 公開, 非公開]
     related_skills: [github-auth, github-pr-workflow, github-issues]
+triggers:
+  - "GitHubにリポジトリ作ってpush"
+  - "githubにリポジトリ作ってpush"
+  - "リポジトリ作ってpush"
+  - "repo作ってpush"
+  - "GitHubへpush"
+  - "GitHubに上げて"
+  - "githubに上げて"
+  - "ローカルプロジェクトをGitHubへ"
+  - "既存ローカルプロジェクトをGitHubへpush"
+  - "既存プロジェクトをGitHubにpush"
+  - "新規リポジトリ作成してpush"
+  - "GitHub repo作成"
+  - "GitHub repo create"
+  - "gh repo create"
+  - "create repository and push"
+  - "publish local project to GitHub"
+  - "clone GitHub repository"
+  - "fork GitHub repository"
+  - "GitHub release create"
+  - "GitHub secrets"
+  - "branch protection"
 ---
 
 # GitHub Repository Management
@@ -95,10 +118,110 @@ gh repo create my-new-project --private --description "A useful tool" --license 
 # Under an organization
 gh repo create my-org/my-new-project --public --clone
 
-# From existing local directory
+# From existing local directory (simple case only; use the safe workflow below for real projects)
 cd /path/to/existing/project
-gh repo create my-project --source . --public --push
+gh repo create my-project --source . --private --push
 ```
+
+### Creating a GitHub repository from an existing local project
+
+Use this for requests such as `GitHubにリポジトリ作ってpush`, `githubに上げて`, `repo作ってpush`, or `既存ローカルプロジェクトをGitHubへpush`. Keep this skill general: the workflow applies to any project, not only a specific app.
+
+Default to a **private** repository unless the user explicitly asks for public.
+
+1. Confirm GitHub authentication:
+
+```bash
+gh auth status
+```
+
+2. Inspect the local repository state and remotes:
+
+```bash
+git -C /path/to/project status --short --branch
+git -C /path/to/project remote -v
+```
+
+If `git status` says `not a git repository`, initialize only after ignore rules are in place.
+
+3. Create or update `.gitignore` **before** `git add`. Typical exclusions:
+
+```gitignore
+# Environment / secrets
+.env
+.env.*
+!.env.example
+secrets/
+
+# Runtime data
+storage/
+*.sqlite
+*.sqlite-*
+*.db
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+dist/
+.turbo/
+*.tsbuildinfo
+
+# Logs / local files
+*.log
+.DS_Store
+.vscode/
+.idea/
+```
+
+4. Verify secrets and generated artifacts are ignored, not staged:
+
+```bash
+git status --short --ignored | sed -n '1,160p'
+```
+
+`.env`, `secrets/`, `storage/`, `node_modules/`, `.next/`, and `__pycache__/` should appear as ignored (`!!`) or be absent. Stop if they are staged (`A`) or untracked (`??`) and should not be published.
+
+5. Run lightweight validation appropriate to the project before publishing. Examples:
+
+```bash
+python3 -m compileall /path/to/project/apps/api/app
+cd /path/to/project/apps/web && npm run build
+```
+
+6. Initialize/commit when needed, then review the staged file list:
+
+```bash
+cd /path/to/project
+git init -b main 2>/dev/null || true
+git add .
+git diff --cached --name-only | sed -n '1,200p'
+git commit -m "Initial <Project Name>"
+```
+
+7. Create the GitHub repository and push:
+
+```bash
+gh repo create <repo> --private --source=. --remote=origin --push
+```
+
+8. Verify the final state:
+
+```bash
+git status --short --branch
+git remote -v
+gh repo view OWNER/REPO --json nameWithOwner,visibility,url,defaultBranchRef
+```
+
+Report the repo URL, visibility, default branch, pushed commit, validation performed, and confirmation that secret/runtime/generated directories were not published.
 
 **With git + curl:**
 
@@ -499,6 +622,15 @@ for g in json.load(sys.stdin):
     files = ', '.join(g['files'].keys())
     print(f\"  {g['id']}  {g['description'] or '(no desc)':40}  {files}\")"
 ```
+
+## Repository safety pitfalls
+
+- Create or verify `.gitignore` before running `git add .`.
+- Stop immediately if `.env`, `secrets/`, `storage/`, `node_modules/`, `.next/`, `__pycache__/`, local DBs, browser profiles, or auth state are staged.
+- NotebookLM/Google auth state, cookies, browser profiles, and uploaded runtime files must never be pushed.
+- Default new repositories to private. Use public only when the user explicitly asks.
+- Build-cache permission fixes must be limited to project-local generated directories; do not broadly `chown` a project or home directory.
+- `gh auth status` may warn about missing `read:org`; for personal repos this is not necessarily blocking if `repo` scope is present.
 
 ## Quick Reference Table
 
