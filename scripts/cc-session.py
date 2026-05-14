@@ -16,6 +16,12 @@ HERMES_HOME = Path(os.environ.get("HERMES_HOME", Path.home() / ".hermes"))
 SESSION_FILE = HERMES_HOME / "cc_session.json"
 TIMEOUT_DAYS = 2
 
+# Hermes profiles may run with an isolated HOME such as
+# /home/ubuntu/.hermes/profiles/myknot/home, while Claude Code is authenticated
+# under the real OS user's home. Keep Claude Code auth/session lookup on that
+# home unless explicitly overridden for another installation.
+CLAUDE_HOME = Path(os.environ.get("CLAUDE_CODE_HOME", "/home/ubuntu"))
+
 # --resume 失敗時に返る既知の文字列
 _RESUME_FAILURE_PHRASES = [
     "No conversation found",
@@ -45,8 +51,20 @@ def _session_id_exists(session_id: str) -> bool:
     """~/.claude/projects/ 以下に対応する .jsonl が存在するか確認する。"""
     if session_id == "unknown":
         return False
-    projects_dir = Path.home() / ".claude" / "projects"
+    projects_dir = CLAUDE_HOME / ".claude" / "projects"
     return bool(list(projects_dir.rglob(f"{session_id}.jsonl")))
+
+
+def _claude_env() -> dict[str, str]:
+    """Claude Code subprocess environment.
+
+    Force HOME to the authenticated OS user's home so the claude CLI can find
+    ~/.claude/.credentials.json and ~/.claude.json even when Hermes itself uses
+    a profile-local HOME.
+    """
+    env = os.environ.copy()
+    env["HOME"] = str(CLAUDE_HOME)
+    return env
 
 
 def check():
@@ -80,6 +98,7 @@ def _run_claude_new(prompt: str) -> subprocess.CompletedProcess:
         capture_output=True,
         text=True,
         timeout=300,
+        env=_claude_env(),
     )
 
 
@@ -116,6 +135,7 @@ def continue_session(prompt: str):
         capture_output=True,
         text=True,
         timeout=300,
+        env=_claude_env(),
     )
 
     output = result.stdout.strip()
@@ -164,7 +184,7 @@ def close():
 def _get_latest_session_id() -> str:
     """~/.claude/projects から最新セッションIDを取得する。"""
     try:
-        projects_dir = Path.home() / ".claude" / "projects"
+        projects_dir = CLAUDE_HOME / ".claude" / "projects"
         jsonl_files = sorted(
             projects_dir.rglob("*.jsonl"),
             key=lambda p: p.stat().st_mtime,
