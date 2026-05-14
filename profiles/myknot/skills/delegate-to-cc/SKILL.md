@@ -67,7 +67,7 @@ print('available' if available else 'blocked')
 
 blocked の場合はkame-devに「現在Claude Codeへの委譲ができません（使用量制限中）。自分で処理するか、後ほど再試行してください。」と伝えて終了する。
 
-注意: `cc_status.json` が available でも、Claude Code が未ログインだと `cc-session.py start/continue` が `Not logged in · Please run /login` を返すことがある。この場合は委譲を諦め、自分で処理する。ユーザーには必要なら「Claude Codeは未ログインで委譲できませんでした」とだけ短く伝える。
+注意: `cc_status.json` が available でも、Claude Code が未ログインだと `cc-session.py start/continue` が `Not logged in · Please run /login` を返すことがある。MyKNOT profile では gateway 実行時の `HOME` が `/home/ubuntu/.hermes/profiles/myknot/home` になり、Claude Code の実認証が `/home/ubuntu/.claude` / `/home/ubuntu/.claude.json` にある場合、`claude` は未ログイン扱いになる。まず `HOME=/home/ubuntu claude -p 'Say OK only' --output-format text` で実認証側が動くか確認する。動く場合は Claude Code 自体ではなく、`cc-session.py` 実行時 HOME と認証ディレクトリの不一致が原因。恒久修正までは `HOME=/home/ubuntu HERMES_HOME=/home/ubuntu/.hermes/profiles/myknot python3 /home/ubuntu/.hermes/scripts/cc-session.py ...` で検証できる。ただし通常運用の修正は MyKNOT/Hermes の自己改修扱いなので、ユーザー承認後に行う。
 
 ### Step 2: セッション確認
 
