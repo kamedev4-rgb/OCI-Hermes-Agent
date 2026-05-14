@@ -92,7 +92,7 @@ python3 /home/ubuntu/.hermes/scripts/cc-session.py start "<topic>" "<prompt>"
 python3 /home/ubuntu/.hermes/scripts/cc-session.py continue "<prompt>"
 ```
 
-`Not logged in · Please run /login` が返った場合は、委譲できていない。以後の作業を自分で続行するか、ユーザーに後で再試行可能な旨を伝える。
+`Not logged in · Please run /login` が返った場合は、まず `HOME=/home/ubuntu HERMES_HOME=/home/ubuntu/.hermes/profiles/myknot python3 /home/ubuntu/.hermes/scripts/cc-session.py ...` で再試行する。これで動くなら HOME/認証ディレクトリ不一致が原因。再試行も失敗した場合のみ、委譲できない旨をユーザーに短く伝える。
 
 ### Step 4: 完了処理
 
