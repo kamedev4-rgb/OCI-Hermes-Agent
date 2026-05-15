@@ -94,6 +94,8 @@ python3 /home/ubuntu/.hermes/scripts/cc-session.py continue "<prompt>"
 
 `Not logged in · Please run /login` が返った場合は、まず `HOME=/home/ubuntu HERMES_HOME=/home/ubuntu/.hermes/profiles/myknot python3 /home/ubuntu/.hermes/scripts/cc-session.py ...` で再試行する。これで動くなら HOME/認証ディレクトリ不一致が原因。再試行も失敗した場合のみ、委譲できない旨をユーザーに短く伝える。
 
+注意: `delegate_task` の子エージェントが terminal tool から `claude -p ...` を実行する場合も、子の環境は `HOME=/home/ubuntu/.hermes/profiles/myknot/home` を継承するため、同じく未ログイン扱いになる。子に Claude Code を呼ばせる場合は、コンテキストで必ず `HOME=/home/ubuntu claude -p ...` または `HOME=/home/ubuntu HERMES_HOME=/home/ubuntu/.hermes/profiles/myknot ...` を指定する。
+
 ### Step 4: 完了処理
 
 kame-devが「セッションを切って」と言った場合、または新しいタスクを明示した場合:
