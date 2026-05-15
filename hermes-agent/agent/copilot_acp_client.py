@@ -24,6 +24,20 @@ from typing import Any
 ACP_MARKER_BASE_URL = "acp://copilot"
 _DEFAULT_TIMEOUT_SECONDS = 900.0
 
+# Hermes profiles may run with an isolated HOME (for example
+# /home/ubuntu/.hermes/profiles/myknot/home), while local coding CLIs such as
+# Claude Code or Copilot keep their auth/session files under the real OS user's
+# home. Use the same override as scripts/cc-session.py so ACP subprocesses can
+# find their credentials from gateway/profile sessions.
+_CLI_HOME = Path(os.environ.get("CLAUDE_CODE_HOME", "/home/ubuntu"))
+
+
+def _acp_subprocess_env() -> dict[str, str]:
+    env = os.environ.copy()
+    env["HOME"] = str(_CLI_HOME)
+    return env
+
+
 _TOOL_CALL_BLOCK_RE = re.compile(r"<tool_call>\s*(\{.*?\})\s*</tool_call>", re.DOTALL)
 _TOOL_CALL_JSON_RE = re.compile(r"\{\s*\"id\"\s*:\s*\"[^\"]+\"\s*,\s*\"type\"\s*:\s*\"function\"\s*,\s*\"function\"\s*:\s*\{.*?\}\s*\}", re.DOTALL)
 
@@ -367,6 +381,7 @@ class CopilotACPClient:
                 text=True,
                 bufsize=1,
                 cwd=self._acp_cwd,
+                env=_acp_subprocess_env(),
             )
         except FileNotFoundError as exc:
             raise RuntimeError(

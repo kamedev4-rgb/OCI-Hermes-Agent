@@ -22,6 +22,7 @@ from tools.environments.local import (
 def _make_fake_popen(captured: dict):
     """Return a fake Popen constructor that records the env kwarg."""
     def fake_popen(cmd, **kwargs):
+        captured["cmd"] = cmd
         captured["env"] = kwargs.get("env", {})
         proc = MagicMock()
         proc.poll.return_value = 0
@@ -320,3 +321,45 @@ class TestSanePathIncludesHomebrew:
             result = _make_run_env({})
         # Should keep existing PATH unchanged
         assert result["PATH"] == "/usr/bin:/bin"
+
+
+class TestClaudeCodeHomeOverride:
+    """Claude Code needs the authenticated OS user's HOME, not profile HOME."""
+
+    def test_claude_command_uses_authenticated_home(self):
+        captured = {}
+        fake_interrupt = threading.Event()
+        env = LocalEnvironment(cwd="/tmp", timeout=10, env={})
+        test_environ = {
+            "PATH": "/usr/bin:/bin",
+            "HOME": "/home/ubuntu/.hermes/profiles/myknot/home",
+            "HERMES_HOME": "/home/ubuntu/.hermes/profiles/myknot",
+            "CLAUDE_CODE_HOME": "/home/ubuntu",
+        }
+
+        with patch("tools.environments.local._find_bash", return_value="/bin/bash"), \
+             patch("subprocess.Popen", side_effect=_make_fake_popen(captured)), \
+             patch("tools.terminal_tool._interrupt_event", fake_interrupt), \
+             patch.dict(os.environ, test_environ, clear=True):
+            env.execute("claude -p 'Say OK only' --output-format text")
+
+        assert captured["env"]["HOME"] == "/home/ubuntu"
+
+    def test_non_claude_command_keeps_profile_home(self):
+        captured = {}
+        fake_interrupt = threading.Event()
+        env = LocalEnvironment(cwd="/tmp", timeout=10, env={})
+        test_environ = {
+            "PATH": "/usr/bin:/bin",
+            "HOME": "/home/ubuntu/.hermes/profiles/myknot/home",
+            "HERMES_HOME": "/home/ubuntu/.hermes/profiles/myknot",
+            "CLAUDE_CODE_HOME": "/home/ubuntu",
+        }
+
+        with patch("tools.environments.local._find_bash", return_value="/bin/bash"), \
+             patch("subprocess.Popen", side_effect=_make_fake_popen(captured)), \
+             patch("tools.terminal_tool._interrupt_event", fake_interrupt), \
+             patch.dict(os.environ, test_environ, clear=True):
+            env.execute("echo hello")
+
+        assert captured["env"]["HOME"] == "/home/ubuntu/.hermes/profiles/myknot/home"

@@ -2,6 +2,7 @@
 
 import os
 import platform
+import re
 import shutil
 import signal
 import subprocess
@@ -14,6 +15,18 @@ _IS_WINDOWS = platform.system() == "Windows"
 
 # Hermes-internal env vars that should NOT leak into terminal subprocesses.
 _HERMES_PROVIDER_ENV_FORCE_PREFIX = "_HERMES_FORCE_"
+_CLAUDE_CODE_COMMAND_RE = re.compile(
+    r"(^|[;&|()\s'\"])(?:/usr/bin/|/usr/local/bin/|/bin/)?claude(?=\s|$)"
+)
+
+
+def _authenticated_cli_home() -> str:
+    """Home directory for local coding CLIs authenticated outside profiles."""
+    return os.environ.get("CLAUDE_CODE_HOME", "/home/ubuntu")
+
+
+def _command_uses_claude_code(cmd_string: str) -> bool:
+    return bool(_CLAUDE_CODE_COMMAND_RE.search(cmd_string or ""))
 
 
 def _build_provider_env_blocklist() -> frozenset:
@@ -257,6 +270,12 @@ class LocalEnvironment(BaseEnvironment):
         bash = _find_bash()
         args = [bash, "-l", "-c", cmd_string] if login else [bash, "-c", cmd_string]
         run_env = _make_run_env(self.env)
+        if _command_uses_claude_code(cmd_string):
+            # Claude Code is authenticated under the real OS user's home on this
+            # host. delegate_task children and gateway sessions otherwise run
+            # terminal commands with a profile-local HOME, causing
+            # `claude -p ...` to report "Not logged in".
+            run_env["HOME"] = _authenticated_cli_home()
 
         proc = subprocess.Popen(
             args,
