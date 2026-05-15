@@ -17,10 +17,11 @@ SESSION_FILE = HERMES_HOME / "cc_session.json"
 TIMEOUT_DAYS = 2
 
 # Hermes profiles may run with an isolated HOME such as
-# /home/ubuntu/.hermes/profiles/myknot/home, while Claude Code is authenticated
-# under the real OS user's home. Keep Claude Code auth/session lookup on that
-# home unless explicitly overridden for another installation.
-CLAUDE_HOME = Path(os.environ.get("CLAUDE_CODE_HOME", "/home/ubuntu"))
+# /home/ubuntu/.hermes/profiles/myknot/home. MyKNOT keeps its Claude Code
+# auth in that profile home so delegate_task children and cc-session.py share
+# the same default. CLAUDE_CODE_HOME remains as an explicit override for
+# emergency/global-auth operation.
+CLAUDE_HOME = Path(os.environ.get("CLAUDE_CODE_HOME") or Path.home())
 
 # --resume 失敗時に返る既知の文字列
 _RESUME_FAILURE_PHRASES = [
@@ -58,9 +59,8 @@ def _session_id_exists(session_id: str) -> bool:
 def _claude_env() -> dict[str, str]:
     """Claude Code subprocess environment.
 
-    Force HOME to the authenticated OS user's home so the claude CLI can find
-    ~/.claude/.credentials.json and ~/.claude.json even when Hermes itself uses
-    a profile-local HOME.
+    Default to the current profile HOME (which should contain MyKNOT's Claude
+    Code auth copy). If CLAUDE_CODE_HOME is set, use it as an explicit override.
     """
     env = os.environ.copy()
     env["HOME"] = str(CLAUDE_HOME)

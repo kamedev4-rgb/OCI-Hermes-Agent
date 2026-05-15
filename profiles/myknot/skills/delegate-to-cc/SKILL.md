@@ -67,7 +67,7 @@ print('available' if available else 'blocked')
 
 blocked の場合はkame-devに「現在Claude Codeへの委譲ができません（使用量制限中）。自分で処理するか、後ほど再試行してください。」と伝えて終了する。
 
-注意: `cc_status.json` が available でも、Claude Code が未ログインだと `cc-session.py start/continue` が `Not logged in · Please run /login` を返すことがある。MyKNOT profile では gateway 実行時の `HOME` が `/home/ubuntu/.hermes/profiles/myknot/home` になり、Claude Code の実認証が `/home/ubuntu/.claude` / `/home/ubuntu/.claude.json` にある場合、`claude` は未ログイン扱いになる。まず `HOME=/home/ubuntu claude -p 'Say OK only' --output-format text` で実認証側が動くか確認する。動く場合は Claude Code 自体ではなく、`cc-session.py` 実行時 HOME と認証ディレクトリの不一致が原因。恒久修正までは `HOME=/home/ubuntu HERMES_HOME=/home/ubuntu/.hermes/profiles/myknot python3 /home/ubuntu/.hermes/scripts/cc-session.py ...` で検証できる。ただし通常運用の修正は MyKNOT/Hermes の自己改修扱いなので、ユーザー承認後に行う。
+注意: MyKNOT profile では gateway 実行時の `HOME` は `/home/ubuntu/.hermes/profiles/myknot/home`。Claude Code 認証もこの profile home にコピー済みなので、通常は `claude -p ...` と `cc-session.py start/continue` はそのまま動く。`Not logged in · Please run /login` が返った場合は、まず `/home/ubuntu/.hermes/profiles/myknot/home/.claude/.credentials.json` と `/home/ubuntu/.hermes/profiles/myknot/home/.claude.json` の存在・権限を確認する。緊急回避だけ `CLAUDE_CODE_HOME=/home/ubuntu` または `HOME=/home/ubuntu` でグローバル認証を使う。
 
 ### Step 2: セッション確認
 
@@ -92,9 +92,7 @@ python3 /home/ubuntu/.hermes/scripts/cc-session.py start "<topic>" "<prompt>"
 python3 /home/ubuntu/.hermes/scripts/cc-session.py continue "<prompt>"
 ```
 
-`Not logged in · Please run /login` が返った場合は、まず `HOME=/home/ubuntu HERMES_HOME=/home/ubuntu/.hermes/profiles/myknot python3 /home/ubuntu/.hermes/scripts/cc-session.py ...` で再試行する。これで動くなら HOME/認証ディレクトリ不一致が原因。再試行も失敗した場合のみ、委譲できない旨をユーザーに短く伝える。
-
-注意: `delegate_task` の子エージェントが terminal tool から `claude -p ...` を実行する場合、MyKNOT の恒久修正後は terminal backend が Claude Code コマンドを検出して `HOME=/home/ubuntu` を自動適用する。再起動前の現行プロセスや未反映環境では、回避策として `HOME=/home/ubuntu claude -p ...` を明示する。
+`Not logged in · Please run /login` が返った場合は、profile home 側の Claude Code 認証コピーを確認する。`cc-session.py` はデフォルトで現在の profile HOME を使い、必要時のみ `CLAUDE_CODE_HOME` で上書きできる。
 
 ### Step 4: 完了処理
 
