@@ -67,7 +67,7 @@ print('available' if available else 'blocked')
 
 blocked の場合はkame-devに「現在Claude Codeへの委譲ができません（使用量制限中）。自分で処理するか、後ほど再試行してください。」と伝えて終了する。
 
-注意: MyKNOT profile では gateway 実行時の `HOME` は `/home/ubuntu/.hermes/profiles/myknot/home`。Claude Code 認証もこの profile home にコピー済みなので、通常は `claude -p ...` と `cc-session.py start/continue` はそのまま動く。`Not logged in · Please run /login` が返った場合は、まず `/home/ubuntu/.hermes/profiles/myknot/home/.claude/.credentials.json` と `/home/ubuntu/.hermes/profiles/myknot/home/.claude.json` の存在・権限を確認する。緊急回避だけ `CLAUDE_CODE_HOME=/home/ubuntu` または `HOME=/home/ubuntu` でグローバル認証を使う。
+注意: MyKNOT profile では gateway 実行時の `HOME` は `/home/ubuntu/.hermes/profiles/myknot/home`。Claude Code 認証もこの profile home にコピー済みなので、通常は `claude -p ...` と `cc-session.py start/continue` と `delegate_task` 子エージェント内の `claude -p ...` はそのまま動く。`Not logged in · Please run /login` が返った場合は、まず `/home/ubuntu/.hermes/profiles/myknot/home/.claude/.credentials.json` と `/home/ubuntu/.hermes/profiles/myknot/home/.claude.json` の存在・権限(0600)を確認する。緊急回避だけ `CLAUDE_CODE_HOME=/home/ubuntu` または `HOME=/home/ubuntu` でグローバル認証を使う。関連Hermes commit: `7c45187 fix: use MyKNOT profile Claude Code auth`。
 
 ### Step 2: セッション確認
 

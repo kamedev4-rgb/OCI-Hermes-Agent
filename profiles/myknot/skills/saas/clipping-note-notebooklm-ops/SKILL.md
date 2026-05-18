@@ -83,10 +83,12 @@ from common.secrets import get_secret
 get_secret("Google_ID")
 ```
 
-Attempting to automate Google login for NotebookLM with Playwright/Chromium/Firefox on the server failed because Google redirected to `accounts.google.com/.../signin/rejected` before password entry. Current practical path:
+Attempting to automate Google login for NotebookLM with Playwright/Chromium/Firefox on the server failed because Google redirected to `accounts.google.com/.../signin/rejected` before password entry. A later retry with `agent-browser` also did not bypass this: after installing the missing profile-local Playwright Chromium (`cd /home/ubuntu/.hermes/hermes-agent && npx playwright install chromium`), `agent-browser open https://notebooklm.google.com/` reached the Google email screen, but entering the Bitwarden `Google_ID` username still redirected to `signin/rejected` before the password screen. Treat this as a Google trust/environment rejection, not a typing/GUI issue.
 
-1. User logs in to NotebookLM from a normal PC browser.
-2. User exports/provides a Playwright-compatible `storage_state.json` / NotebookLM auth file.
+Current practical path:
+
+1. User logs in to NotebookLM from a normal PC browser, or MyKNOT provides a temporary remote GUI and the user performs the Google login there.
+2. Export/provide a Playwright-compatible `storage_state.json` / NotebookLM auth file from that trusted logged-in browser session.
 3. Place it on the server, e.g. under the Clipping Note storage directory.
 4. Set `.env`:
 
@@ -101,6 +103,38 @@ Shared-note handoff records created for this work:
 
 - `01KRA3QPSP3CF5GYETVAXA3137` — `NotebookLM認証: PC側で行う作業`
 - `01KRA3QRAB3G795NVAD1X9FWZ0` — `Clipping Note NotebookLM連携: 次セッション引き継ぎ`
+
+## Operational hardening learned from May 17, 2026
+
+When making NotebookLM operational changes, check these paths explicitly:
+
+- `notebooklm_cleanup` jobs must not update the parent clipping status. A cleanup job should only update `processing_jobs` and `notebooklm_sessions`; otherwise a completed clipping can be reverted to `processing`, `pending`, or `failed` after cleanup.
+- PDF/CSV fallback after failed NotebookLM `add_file` should not call the generic `save_summary()` path, because that can try NotebookLM `add_text` again. Call the Gemini/local summarization fallback directly and save via `save_result_summary()` with metadata such as `fallback_after: notebooklm_file`, preserving non-RAG/fallback status.
+- Image processing is not part of the current NotebookLM-first scope. Keep image on Gemini Vision/manual fallback unless the product policy explicitly changes; otherwise mock/NotebookLM image summaries can be incorrectly treated as RAG-ready NotebookLM output.
+- Do not treat `NOTEBOOKLM_COOKIE` alone as configured unless code actually passes it to `notebooklm-py`. Current practical configured criteria are `NOTEBOOKLM_ENABLED=true` plus `NOTEBOOKLM_COOKIES_PATH`, or mock mode for local adapter-path tests.
+- In `notebooklm_adapter._real_summarize()`, if a temporary notebook is created and source add/chat fails before the session is saved, immediately attempt `client.notebooks.delete(nb.id)` before re-raising to reduce orphan notebooks.
+- `NOTEBOOKLM_MOCK=true` is only for adapter-path testing; mock output is shaped as provider `notebooklm`, so leaving it enabled in real operation would make fake NotebookLM output RAG-indexed.
+
+Useful verification commands used for this hardening:
+
+```bash
+python3 -m compileall apps/api/app
+cd apps/web && npm run build
+cd /home/ubuntu/saas/clipping-note
+docker compose build api worker web
+docker compose up -d api worker web
+docker compose exec -T api python - <<'PY'
+import urllib.request
+for path in ['/health','/api/settings/notebooklm']:
+    print(path)
+    print(urllib.request.urlopen('http://127.0.0.1:8000'+path, timeout=5).read().decode())
+PY
+docker compose exec -T -e NOTEBOOKLM_ENABLED=true -e NOTEBOOKLM_MOCK=true api python - <<'PY'
+from app import notebooklm_adapter
+r = notebooklm_adapter.summarize_text('疎通テスト', 'NotebookLM mock path test。', source_type='text')
+print({'configured': notebooklm_adapter.status()['configured'], 'provider': r['provider'], 'has_external_id': bool(r.get('external_notebook_id'))})
+PY
+```
 
 ## Verification after changes
 
