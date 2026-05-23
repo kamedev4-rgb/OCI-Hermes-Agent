@@ -505,10 +505,138 @@ def run_monitor(*, root: Path | None = None, now: datetime | None = None) -> dic
 
 
 
+
+
+# ---------------------------------------------------------------------------
+# Weekly-reset token-keepalive & Claude Code expiry watch
+# ---------------------------------------------------------------------------
+
+_STATE_WEEK_RESET_KEY = "last_seen_week_reset_at"
+
+
+def _get_global_week_reset(state):
+    latest_ts = -1
+    reset_at = None
+    for acct in state.get("accounts", {}).values():
+        snap = acct.get("latest") or {}
+        observed = snap.get("observed_at") or 0
+        if observed > latest_ts and snap.get("week_reset_at") is not None:
+            latest_ts = observed
+            reset_at = snap["week_reset_at"]
+    return reset_at
+
+
+def token_keepalive_after_weekly_reset(root=None, now=None, profile="myknot"):
+    """週次リセット後に1回だけダミー会話を送りCodexトークンを更新する。"""
+    import subprocess
+
+    hermes_root = root or get_default_hermes_root()
+    state_path = get_state_path(hermes_root)
+    state = load_state(state_path)
+
+    current_reset = _get_global_week_reset(state)
+    last_seen = state.get(_STATE_WEEK_RESET_KEY)
+
+    result = {
+        "current_week_reset_at": current_reset,
+        "last_seen_week_reset_at": last_seen,
+        "keepalive_sent": False,
+        "error": None,
+    }
+
+    if current_reset is None:
+        result["error"] = "week_reset_at not available in state (no probe yet)"
+        return result
+
+    if last_seen is not None and last_seen == current_reset:
+        return result
+
+    hermes_bin = hermes_root / "hermes-agent" / "venv" / "bin" / "hermes"
+    env = {**os.environ, "HERMES_HOME": str(hermes_root)}
+    try:
+        proc = subprocess.run(
+            [str(hermes_bin), "--profile", profile, "chat", "-Q", "-q", "週次リセット後の自動疎通確認です。"],
+            capture_output=True, text=True, timeout=120, env=env,
+        )
+        if proc.returncode == 0:
+            result["keepalive_sent"] = True
+        else:
+            result["error"] = f"hermes chat failed: {proc.stderr[:200]}"
+    except Exception as exc:
+        result["error"] = str(exc)
+
+    state[_STATE_WEEK_RESET_KEY] = current_reset
+    save_state(state, state_path)
+    return result
+
+
+def check_claude_code_expiry(root=None, warn_days=3):
+    """Claude Codeのトークン期限を確認し、warn_days以内なら Discord警告を送る。
+
+    CLIリフレッシュはブラウザ経由のみのため自動更新は不可。手動対応を促す通知のみ。
+    """
+    hermes_root = root or get_default_hermes_root()
+    creds_path = hermes_root / "profiles" / "myknot" / "home" / ".claude" / ".credentials.json"
+
+    result = {"notified": False, "expires_at": None, "days_left": None, "error": None}
+
+    if not creds_path.exists():
+        result["error"] = f"{creds_path} not found"
+        return result
+
+    try:
+        creds = json.loads(creds_path.read_text(encoding="utf-8"))
+        expires_ms = creds["claudeAiOauth"]["expiresAt"]
+    except Exception as exc:
+        result["error"] = f"Failed to read credentials: {exc}"
+        return result
+
+    now_ts = time.time()
+    expires_at = expires_ms / 1000
+    days_left = (expires_at - now_ts) / 86400
+    result["expires_at"] = datetime.fromtimestamp(expires_at, tz=timezone.utc).isoformat()
+    result["days_left"] = round(days_left, 1)
+
+    if days_left > warn_days:
+        return result
+
+    config = load_monitor_config(hermes_root)
+    delivery = config.get("delivery") or {}
+    bot_token = os.getenv("DISCORD_BOT_TOKEN", "").strip()
+    channel_id = str(delivery.get("discord_channel_id") or "").strip()
+
+    if days_left <= 0:
+        msg = "⚠️ Claude Code トークンが期限切れです。OCI VM で `claude setup-token` を実行して再認証してください。"
+    else:
+        msg = (
+            f"⚠️ Claude Code トークンの期限が約 {days_left:.1f} 日後に切れます。\n"
+            "OCI VM で `claude setup-token` を実行して再認証してください。"
+        )
+
+    try:
+        send_discord_message(msg, channel_id=channel_id, bot_token=bot_token)
+        result["notified"] = True
+    except Exception as exc:
+        result["error"] = f"Discord notify failed: {exc}"
+
+    return result
 def main() -> int:
     try:
         result = run_monitor()
-        if result["silent"]:
+
+        keepalive = token_keepalive_after_weekly_reset()
+        if keepalive.get("keepalive_sent"):
+            result["keepalive_sent"] = True
+        if keepalive.get("error"):
+            result["keepalive_error"] = keepalive["error"]
+
+        cc_check = check_claude_code_expiry()
+        if cc_check.get("notified"):
+            result["cc_expiry_notified"] = True
+        if cc_check.get("error"):
+            result["cc_expiry_error"] = cc_check["error"]
+
+        if result["silent"] and not keepalive.get("keepalive_sent") and not cc_check.get("notified"):
             print("[SILENT]")
         else:
             print(json.dumps(result, ensure_ascii=False))
